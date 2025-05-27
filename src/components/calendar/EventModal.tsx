@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,9 +26,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 import { formatToLocalISOString, newDate } from "@/lib/date-utils";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useCalendarStore } from "@/store/calendar";
 import { useSettingsStore } from "@/store/settings";
 
 import { CalendarEvent } from "@/types/calendar";
@@ -129,7 +130,6 @@ export function EventModal({
   defaultDate,
   defaultEndDate,
 }: EventModalProps) {
-  const { feeds, addEvent, updateEvent, removeEvent } = useCalendarStore();
   const { calendar } = useSettingsStore();
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [showRecurrenceDialog, setShowRecurrenceDialog] = useState(false);
@@ -160,6 +160,118 @@ export function EventModal({
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceByDay, setRecurrenceByDay] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Get feeds data
+  const { data: feeds = [] } = trpc.feeds.getAll.useQuery({});
+
+  // tRPC mutations for event operations
+  const createGoogleEventMutation =
+    trpc.calendar.googleEvents.create.useMutation({
+      onSuccess: () => {
+        toast.success("Google Calendar event created successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to create Google Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const updateGoogleEventMutation =
+    trpc.calendar.googleEvents.update.useMutation({
+      onSuccess: () => {
+        toast.success("Google Calendar event updated successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to update Google Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const deleteGoogleEventMutation =
+    trpc.calendar.googleEvents.delete.useMutation({
+      onSuccess: () => {
+        toast.success("Google Calendar event deleted successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to delete Google Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const createOutlookEventMutation =
+    trpc.calendar.outlookEvents.create.useMutation({
+      onSuccess: () => {
+        toast.success("Outlook Calendar event created successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to create Outlook Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const updateOutlookEventMutation =
+    trpc.calendar.outlookEvents.update.useMutation({
+      onSuccess: () => {
+        toast.success("Outlook Calendar event updated successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to update Outlook Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const deleteOutlookEventMutation =
+    trpc.calendar.outlookEvents.delete.useMutation({
+      onSuccess: () => {
+        toast.success("Outlook Calendar event deleted successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to delete Outlook Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const createCalDAVEventMutation =
+    trpc.calendar.caldavEvents.create.useMutation({
+      onSuccess: () => {
+        toast.success("CalDAV Calendar event created successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to create CalDAV Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const updateCalDAVEventMutation =
+    trpc.calendar.caldavEvents.update.useMutation({
+      onSuccess: () => {
+        toast.success("CalDAV Calendar event updated successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to update CalDAV Calendar event", {
+          description: error.message,
+        });
+      },
+    });
+
+  const deleteCalDAVEventMutation =
+    trpc.calendar.caldavEvents.delete.useMutation({
+      onSuccess: () => {
+        toast.success("CalDAV Calendar event deleted successfully");
+      },
+      onError: (error) => {
+        toast.error("Failed to delete CalDAV Calendar event", {
+          description: error.message,
+        });
+      },
+    });
 
   // Reset form when modal opens
   useEffect(() => {
@@ -224,41 +336,147 @@ export function EventModal({
         return;
       }
 
-      const eventData: Omit<CalendarEvent, "id"> = {
-        title,
-        description,
-        location,
-        start: startDate,
-        end: endDate,
-        feedId: selectedFeedId,
-        allDay: isAllDay,
-        isRecurring,
-        recurrenceRule: isRecurring
-          ? buildRecurrenceRule(
-              recurrenceFreq,
-              recurrenceInterval,
-              recurrenceByDay
-            )
-          : undefined,
-        isMaster: false,
-      };
-
       if (event?.id) {
         // For existing events
         if (feed.type === "GOOGLE" && !event.externalEventId) {
           throw new Error("Cannot edit this Google Calendar event");
         }
-        await updateEvent(event.id, eventData, editMode);
+
+        // Use appropriate mutation based on calendar type
+        switch (feed.type) {
+          case "GOOGLE":
+            await updateGoogleEventMutation.mutateAsync({
+              eventId: event.id,
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          case "OUTLOOK":
+            await updateOutlookEventMutation.mutateAsync({
+              eventId: event.id,
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          case "CALDAV":
+            await updateCalDAVEventMutation.mutateAsync({
+              eventId: event.id,
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          default:
+            throw new Error(`Unsupported calendar type: ${feed.type}`);
+        }
       } else {
         // For new events
-        await addEvent(eventData);
+        switch (feed.type) {
+          case "GOOGLE":
+            await createGoogleEventMutation.mutateAsync({
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          case "OUTLOOK":
+            await createOutlookEventMutation.mutateAsync({
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          case "CALDAV":
+            await createCalDAVEventMutation.mutateAsync({
+              feedId: selectedFeedId,
+              title,
+              description,
+              location,
+              start: startDate,
+              end: endDate,
+              allDay: isAllDay,
+              isRecurring,
+              recurrenceRule: isRecurring
+                ? buildRecurrenceRule(
+                    recurrenceFreq,
+                    recurrenceInterval,
+                    recurrenceByDay
+                  )
+                : undefined,
+            });
+            break;
+          default:
+            throw new Error(`Unsupported calendar type: ${feed.type}`);
+        }
       }
       // Reset all states before closing
       resetState();
       onClose();
     } catch (error) {
       console.error("Failed to save event:", error);
-      alert(error instanceof Error ? error.message : "Failed to save event");
+      // Error is already handled in the mutation onError callback
     } finally {
       setIsSubmitting(false);
     }
@@ -269,12 +487,42 @@ export function EventModal({
 
     try {
       setIsSubmitting(true);
-      await removeEvent(event.id, editMode);
+
+      const feed = feeds.find((f) => f.id === selectedFeedId);
+      if (!feed) {
+        console.error("Selected calendar not found");
+        return;
+      }
+
+      // Use appropriate mutation based on calendar type
+      switch (feed.type) {
+        case "GOOGLE":
+          await deleteGoogleEventMutation.mutateAsync({
+            eventId: event.id,
+            feedId: selectedFeedId,
+          });
+          break;
+        case "OUTLOOK":
+          await deleteOutlookEventMutation.mutateAsync({
+            eventId: event.id,
+            feedId: selectedFeedId,
+          });
+          break;
+        case "CALDAV":
+          await deleteCalDAVEventMutation.mutateAsync({
+            eventId: event.id,
+            feedId: selectedFeedId,
+          });
+          break;
+        default:
+          throw new Error(`Unsupported calendar type: ${feed.type}`);
+      }
+
       resetState();
       onClose();
     } catch (error) {
       console.error("Failed to delete event:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete event");
+      // Error is already handled in the mutation onError callback
     } finally {
       setIsSubmitting(false);
     }

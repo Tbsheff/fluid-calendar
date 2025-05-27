@@ -49,12 +49,21 @@ export const useTaskStore = create<TaskState>()(
     (set, get) => ({
       tasks: [],
       tags: [],
-      filters: {},
+      filters: {
+        status: [],
+        priority: [],
+        tagIds: [],
+        timePreference: [],
+        hideUpcomingTasks: false,
+      },
       loading: false,
       error: null,
 
-      // Task actions
+      // Task actions (deprecated - use tRPC directly)
       fetchTasks: async () => {
+        console.warn(
+          "fetchTasks is deprecated. Use tRPC trpc.tasks.getAll.useQuery() instead."
+        );
         set({ loading: true, error: null });
         try {
           const { filters } = get();
@@ -63,20 +72,16 @@ export const useTaskStore = create<TaskState>()(
           if (filters.status?.length) {
             filters.status.forEach((s) => params.append("status", s));
           }
-          if (filters.tagIds?.length) {
-            filters.tagIds.forEach((id) => params.append("tagIds", id));
+          if (filters.priority?.length) {
+            filters.priority.forEach((p) => params.append("priority", p));
           }
           if (filters.projectId) {
             params.append("projectId", filters.projectId);
           }
-          if (filters.search) {
-            params.append("search", filters.search);
+          if (filters.tagIds?.length) {
+            filters.tagIds.forEach((id) => params.append("tagIds", id));
           }
-          if (filters.energyLevel?.length) {
-            filters.energyLevel.forEach((level) =>
-              params.append("energyLevel", level)
-            );
-          }
+          if (filters.hideUpcomingTasks) params.append("hideUpcoming", "true");
           if (filters.timePreference?.length) {
             filters.timePreference.forEach((pref) =>
               params.append("timePreference", pref)
@@ -95,6 +100,9 @@ export const useTaskStore = create<TaskState>()(
       },
 
       createTask: async (task: NewTask) => {
+        console.warn(
+          "createTask is deprecated. Use tRPC trpc.tasks.create.useMutation() instead."
+        );
         set({ loading: true, error: null });
         try {
           const response = await fetch("/api/tasks", {
@@ -116,6 +124,9 @@ export const useTaskStore = create<TaskState>()(
       },
 
       updateTask: async (id: string, updates: UpdateTask) => {
+        console.warn(
+          "updateTask is deprecated. Use tRPC trpc.tasks.update.useMutation() instead."
+        );
         set({ loading: true, error: null });
         try {
           const response = await fetch(`/api/tasks/${id}`, {
@@ -146,6 +157,9 @@ export const useTaskStore = create<TaskState>()(
       },
 
       deleteTask: async (id: string) => {
+        console.warn(
+          "deleteTask is deprecated. Use tRPC trpc.tasks.delete.useMutation() instead."
+        );
         set({ loading: true, error: null });
         try {
           const response = await fetch(`/api/tasks/${id}`, {
@@ -258,6 +272,9 @@ export const useTaskStore = create<TaskState>()(
       },
 
       assignToProject: async (taskId: string, projectId: string | null) => {
+        console.warn(
+          "assignToProject is deprecated. Use tRPC trpc.tasks.update.useMutation() instead."
+        );
         set({ loading: true, error: null });
         try {
           const response = await fetch(`/api/tasks/${taskId}`, {

@@ -14,12 +14,18 @@ import {
 
 import { clearResendInstance } from "@/lib/email/resend";
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { useSettingsStore } from "@/store/settings";
 
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 const LOG_SOURCE = "SystemSettings";
+
+// Helper function to convert null to undefined
+const nullToUndefined = (value: string | null): string | undefined => {
+  return value === null ? undefined : value;
+};
 
 /**
  * System settings component
@@ -28,52 +34,78 @@ const LOG_SOURCE = "SystemSettings";
  */
 export function SystemSettings() {
   const { system, updateSystemSettings } = useSettingsStore();
+  const utils = trpc.useUtils();
 
-  useEffect(() => {
-    // Load settings from API
-    fetch("/api/system-settings")
-      .then((res) => res.json())
-      .then((data) => {
-        updateSystemSettings({
-          googleClientId: data.googleClientId,
-          googleClientSecret: data.googleClientSecret,
-          outlookClientId: data.outlookClientId,
-          outlookClientSecret: data.outlookClientSecret,
-          outlookTenantId: data.outlookTenantId,
-          logLevel: data.logLevel,
-          disableHomepage: data.disableHomepage,
-          resendApiKey: data.resendApiKey,
-        });
-      })
-      .catch((error) => {
-        logger.error(
-          "Failed to load system settings",
-          { error: error instanceof Error ? error.message : "Unknown error" },
-          LOG_SOURCE
-        );
+  // Use tRPC query for system settings
+  const { data: systemSettingsData, error } =
+    trpc.systemSettings.get.useQuery();
+
+  // Use tRPC mutation for updating system settings
+  const updateSystemSettingsMutation = trpc.systemSettings.update.useMutation({
+    onSuccess: (data) => {
+      updateSystemSettings({
+        googleClientId: nullToUndefined(data.googleClientId),
+        googleClientSecret: nullToUndefined(data.googleClientSecret),
+        outlookClientId: nullToUndefined(data.outlookClientId),
+        outlookClientSecret: nullToUndefined(data.outlookClientSecret),
+        outlookTenantId: nullToUndefined(data.outlookTenantId),
+        logLevel: data.logLevel as "none" | "debug",
+        disableHomepage: data.disableHomepage,
+        resendApiKey: nullToUndefined(data.resendApiKey),
       });
-  }, [updateSystemSettings]);
+      utils.systemSettings.get.invalidate();
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to update system settings",
+        { error: error.message },
+        LOG_SOURCE
+      );
+    },
+  });
+
+  // Update local state when data is loaded
+  useEffect(() => {
+    if (systemSettingsData) {
+      updateSystemSettings({
+        googleClientId: nullToUndefined(systemSettingsData.googleClientId),
+        googleClientSecret: nullToUndefined(
+          systemSettingsData.googleClientSecret
+        ),
+        outlookClientId: nullToUndefined(systemSettingsData.outlookClientId),
+        outlookClientSecret: nullToUndefined(
+          systemSettingsData.outlookClientSecret
+        ),
+        outlookTenantId: nullToUndefined(systemSettingsData.outlookTenantId),
+        logLevel: systemSettingsData.logLevel as "none" | "debug",
+        disableHomepage: systemSettingsData.disableHomepage,
+        resendApiKey: nullToUndefined(systemSettingsData.resendApiKey),
+      });
+    }
+  }, [systemSettingsData, updateSystemSettings]);
+
+  // Handle loading and error states
+  useEffect(() => {
+    if (error) {
+      logger.error(
+        "Failed to load system settings",
+        { error: error.message },
+        LOG_SOURCE
+      );
+    }
+  }, [error]);
 
   const handleUpdate = async (updates: Partial<typeof system>) => {
     try {
-      const response = await fetch("/api/system-settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
-      const data = await response.json();
-      updateSystemSettings(data);
+      await updateSystemSettingsMutation.mutateAsync(updates);
 
       // Clear Resend instance if the API key was updated
       if ("resendApiKey" in updates) {
         clearResendInstance();
       }
     } catch (error) {
-      logger.error(
-        "Failed to update system settings",
-        { error: error instanceof Error ? error.message : "Unknown error" },
-        LOG_SOURCE
-      );
+      // Error is already handled in the mutation onError callback
+      console.error("Update failed:", error);
     }
   };
 

@@ -167,6 +167,11 @@ export const useFocusModeStore = create<FocusModeStore>()(
       },
 
       completeCurrentTask: () => {
+        console.warn(
+          "⚠️  DEPRECATED: useFocusModeStore.completeCurrentTask() is deprecated. " +
+            "Use tRPC hooks instead: trpc.tasks.update.useMutation() with status: 'COMPLETED'"
+        );
+
         logger.debug("[FocusMode] Completing current task", {}, LOG_SOURCE);
         const state = get();
         const currentTaskId = state.currentTaskId;
@@ -183,11 +188,9 @@ export const useFocusModeStore = create<FocusModeStore>()(
         // Show loading overlay
         get().startProcessing("celebration", "Task completed! 🎉");
 
-        // First update the task status in the database
+        // Use task store method (which has tRPC alternatives available)
         const taskStore = useTaskStore.getState();
 
-        // Update task in the database - using the async/await pattern through
-        // an immediately invoked async function
         (async () => {
           try {
             logger.info(
@@ -198,13 +201,12 @@ export const useFocusModeStore = create<FocusModeStore>()(
               LOG_SOURCE
             );
 
-            // Handle case where task is recurring but missing recurrence rule
             const updates = {
               status: TaskStatus.COMPLETED,
             };
 
             await taskStore.updateTask(currentTaskId, updates);
-            // Show celebration overlay
+
             logger.debug(
               "[FocusMode] Task successfully marked as completed in database",
               {
@@ -215,7 +217,7 @@ export const useFocusModeStore = create<FocusModeStore>()(
 
             // Refresh tasks to make sure our tasks list is up-to-date
             await taskStore.fetchTasks();
-            // Wait for celebration to finish (3 seconds)
+
             // Move to next task if available
             const queuedTaskIds = get().getQueuedTaskIds();
             const nextTaskId = queuedTaskIds[0];
@@ -251,6 +253,11 @@ export const useFocusModeStore = create<FocusModeStore>()(
       },
 
       postponeTask: (duration: string) => {
+        console.warn(
+          "⚠️  DEPRECATED: useFocusModeStore.postponeTask() is deprecated. " +
+            "Use tRPC hooks instead: trpc.tasks.update.useMutation() with postponedUntil field"
+        );
+
         logger.debug("[FocusMode] Postponing task", { duration }, LOG_SOURCE);
         const state = get();
         const currentTaskId = state.currentTaskId;
@@ -266,9 +273,6 @@ export const useFocusModeStore = create<FocusModeStore>()(
 
         // Show loading overlay
         get().startProcessing("loading", `Postponing task for ${duration}...`);
-
-        // First update the task in the database
-        const taskStore = useTaskStore.getState();
 
         // Calculate the postpone until time based on duration
         let postponedUntil = newDate();
@@ -289,7 +293,9 @@ export const useFocusModeStore = create<FocusModeStore>()(
             postponedUntil = addHours(postponedUntil, 1); // Default to 1 hour
         }
 
-        // Update task in the database
+        // Use task store method (which has tRPC alternatives available)
+        const taskStore = useTaskStore.getState();
+
         (async () => {
           try {
             logger.info(

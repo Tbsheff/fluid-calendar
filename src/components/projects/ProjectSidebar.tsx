@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { isSaasEnabled } from "@/lib/config";
+import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/project";
@@ -20,6 +22,9 @@ import { TaskStatus } from "@/types/task";
 
 import { useDroppableProject } from "../dnd/useDragAndDrop";
 import { ProjectModal } from "./ProjectModal";
+
+// Logging source
+const LOG_SOURCE = "ProjectSidebar";
 
 // Special project object to represent "no project" state
 const NO_PROJECT: Partial<Project> = {
@@ -58,81 +63,100 @@ export function ProjectSidebar() {
   const { droppableProps: removeProjectProps, isOver: isOverRemove } =
     useDroppableProject(null);
 
+  // tRPC query for fetching task list mappings
+  const { data: mappingsData, error: mappingsError } =
+    trpc.taskSync.mappings.getAll.useQuery(
+      {
+        includeProvider: true,
+        includeProject: true,
+      },
+      {
+        enabled: projects.length > 0,
+      }
+    );
+
+  // tRPC mutation for triggering sync
+  const triggerSyncMutation = trpc.taskSync.sync.trigger.useMutation({
+    onSuccess: () => {
+      if (isSaasEnabled) {
+        toast.success("Task sync initiated for project");
+      } else {
+        const { fetchTasks } = useTaskStore.getState();
+        fetchTasks();
+        toast.success("Sync Completed");
+      }
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to sync project tasks via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to sync tasks for project");
+    },
+  });
+
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  // Fetch task list mappings for projects
+  // Process mappings data when it changes
   useEffect(() => {
-    if (projects.length > 0) {
-      fetchProjectMappings();
-    }
-  }, [projects]);
+    if (mappingsData) {
+      // Group mappings by project ID
+      const mappingsByProject: Record<string, TaskListMapping[]> = {};
 
-  const fetchProjectMappings = async () => {
-    try {
-      const response = await fetch("/api/task-sync/mappings");
-      const data = await response.json();
-
-      if (data.mappings) {
-        // Group mappings by project ID
-        const mappingsByProject: Record<string, TaskListMapping[]> = {};
-
-        data.mappings.forEach((mapping: TaskListMapping) => {
-          if (!mappingsByProject[mapping.projectId]) {
-            mappingsByProject[mapping.projectId] = [];
-          }
-          mappingsByProject[mapping.projectId].push(mapping);
+      mappingsData.forEach((mapping) => {
+        if (!mappingsByProject[mapping.projectId]) {
+          mappingsByProject[mapping.projectId] = [];
+        }
+        mappingsByProject[mapping.projectId].push({
+          id: mapping.id,
+          providerId: mapping.providerId,
+          projectId: mapping.projectId,
+          externalListId: mapping.externalListId,
+          externalListName: mapping.externalListName,
         });
+      });
 
-        setProjectMappings(mappingsByProject);
-      }
-    } catch (error) {
-      console.error("Failed to fetch task list mappings:", error);
+      setProjectMappings(mappingsByProject);
     }
-  };
+  }, [mappingsData]);
+
+  // Handle mappings error
+  useEffect(() => {
+    if (mappingsError) {
+      logger.error(
+        "Failed to fetch task list mappings via tRPC",
+        { error: mappingsError.message },
+        LOG_SOURCE
+      );
+    }
+  }, [mappingsError]);
 
   const handleSyncProject = useCallback(
     async (projectId: string, mappingId: string) => {
       if (syncingProjects.has(projectId)) return;
 
-      try {
-        setSyncingProjects((prev) => new Set(prev).add(projectId));
+      setSyncingProjects((prev) => new Set(prev).add(projectId));
 
-        const response = await fetch("/api/task-sync/sync", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      triggerSyncMutation.mutate(
+        {
+          mappingId,
+          forceSync: false,
+        },
+        {
+          onSettled: () => {
+            setSyncingProjects((prev) => {
+              const next = new Set(prev);
+              next.delete(projectId);
+              return next;
+            });
           },
-          body: JSON.stringify({
-            mappingId,
-            direction: "bidirectional",
-          }),
-        });
-
-        if (response.ok) {
-          if (isSaasEnabled) {
-            toast.success("Task sync initiated for project");
-          } else {
-            const { fetchTasks } = useTaskStore.getState();
-            await fetchTasks();
-            toast.success("Sync Completed");
-          }
-        } else {
-          toast.error("Failed to sync tasks for project");
         }
-      } catch (error) {
-        console.error("Failed to sync project tasks:", error);
-        toast.error("Failed to sync tasks for project");
-      } finally {
-        setSyncingProjects((prev) => {
-          const next = new Set(prev);
-          next.delete(projectId);
-          return next;
-        });
-      }
+      );
     },
-    [syncingProjects]
+    [syncingProjects, triggerSyncMutation]
   );
 
   const activeProjects = projects.filter(

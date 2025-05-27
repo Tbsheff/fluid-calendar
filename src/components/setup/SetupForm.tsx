@@ -19,6 +19,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { trpc } from "@/lib/trpc/client";
+
 import { useSetupStore } from "@/store/setup";
 
 export function SetupForm() {
@@ -27,6 +29,9 @@ export function SetupForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const { setSetupStatus } = useSetupStore();
+
+  // tRPC mutation for setup
+  const setupMutation = trpc.setup.perform.useMutation();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -59,22 +64,11 @@ export function SetupForm() {
     }
 
     try {
-      const response = await fetch("/api/setup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-        }),
+      await setupMutation.mutateAsync({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to set up admin account");
-      }
 
       setSuccess(true);
 
@@ -87,9 +81,12 @@ export function SetupForm() {
         router.refresh();
       }, 2000);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "An unknown error occurred"
-      );
+      // Handle tRPC errors
+      if (err && typeof err === "object" && "message" in err) {
+        setError(err.message as string);
+      } else {
+        setError("An unknown error occurred");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +129,7 @@ export function SetupForm() {
                 placeholder="John Doe"
                 value={formData.name}
                 onChange={handleChange}
-                disabled={isLoading || success}
+                disabled={isLoading || success || setupMutation.isPending}
                 required
               />
             </div>
@@ -146,7 +143,7 @@ export function SetupForm() {
                 placeholder="admin@example.com"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={isLoading || success}
+                disabled={isLoading || success || setupMutation.isPending}
                 required
               />
             </div>
@@ -159,7 +156,7 @@ export function SetupForm() {
                 type="password"
                 value={formData.password}
                 onChange={handleChange}
-                disabled={isLoading || success}
+                disabled={isLoading || success || setupMutation.isPending}
                 required
               />
             </div>
@@ -172,7 +169,7 @@ export function SetupForm() {
                 type="password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                disabled={isLoading || success}
+                disabled={isLoading || success || setupMutation.isPending}
                 required
               />
             </div>
@@ -181,9 +178,11 @@ export function SetupForm() {
           <Button
             type="submit"
             className="mt-6 w-full"
-            disabled={isLoading || success}
+            disabled={isLoading || success || setupMutation.isPending}
           >
-            {isLoading ? "Setting up..." : "Create Admin Account"}
+            {isLoading || setupMutation.isPending
+              ? "Setting up..."
+              : "Create Admin Account"}
           </Button>
         </form>
       </CardContent>

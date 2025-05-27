@@ -1,6 +1,9 @@
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 
+import { UserSettings as PrismaUserSettings } from "@prisma/client";
+import { toast } from "sonner";
+
 import {
   Select,
   SelectContent,
@@ -9,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useSettingsStore } from "@/store/settings";
+import { trpc } from "@/lib/trpc/client";
 
 import { TimeFormat, WeekStartDay } from "@/types/settings";
 
@@ -17,7 +20,38 @@ import { SettingRow, SettingsSection } from "./SettingsSection";
 
 export function UserSettings() {
   const { data: session } = useSession();
-  const { user, updateUserSettings } = useSettingsStore();
+
+  // Use tRPC to fetch and update user settings
+  const { data: userSettingsData, isLoading } = trpc.settings.get.useQuery({
+    type: "user",
+  });
+
+  // Cast to the correct type since we know we're fetching user settings
+  const userSettings = userSettingsData as PrismaUserSettings | undefined;
+
+  const updateUserSettingsMutation = trpc.settings.update.useMutation();
+
+  const handleUpdateUserSettings = async (
+    updates: Partial<{
+      timeFormat: TimeFormat;
+      weekStartDay: WeekStartDay;
+      timeZone: string;
+    }>
+  ) => {
+    try {
+      await updateUserSettingsMutation.mutateAsync({
+        type: "user",
+        data: updates,
+      });
+
+      toast.success("User settings updated successfully");
+    } catch (error) {
+      toast.error("Failed to update user settings", {
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  };
 
   const timeFormats: { value: TimeFormat; label: string }[] = [
     { value: "12h", label: "12-hour" },
@@ -110,6 +144,36 @@ export function UserSettings() {
     "Pacific/Honolulu",
   ];
 
+  // Show loading state while fetching settings
+  if (isLoading) {
+    return (
+      <SettingsSection
+        title="User Settings"
+        description="Manage your personal preferences for the calendar application."
+      >
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">Loading user settings...</div>
+        </div>
+      </SettingsSection>
+    );
+  }
+
+  // Handle case where settings are not loaded
+  if (!userSettings) {
+    return (
+      <SettingsSection
+        title="User Settings"
+        description="Manage your personal preferences for the calendar application."
+      >
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">
+            Failed to load user settings
+          </div>
+        </div>
+      </SettingsSection>
+    );
+  }
+
   return (
     <SettingsSection
       title="User Settings"
@@ -142,10 +206,11 @@ export function UserSettings() {
         description="Choose how times are displayed"
       >
         <Select
-          value={user.timeFormat}
+          value={(userSettings as PrismaUserSettings)?.timeFormat}
           onValueChange={(value) =>
-            updateUserSettings({ timeFormat: value as TimeFormat })
+            handleUpdateUserSettings({ timeFormat: value as TimeFormat })
           }
+          disabled={updateUserSettingsMutation.isPending}
         >
           <SelectTrigger>
             <SelectValue />
@@ -165,10 +230,11 @@ export function UserSettings() {
         description="Choose which day your week starts on"
       >
         <Select
-          value={user.weekStartDay}
+          value={(userSettings as PrismaUserSettings)?.weekStartDay}
           onValueChange={(value) =>
-            updateUserSettings({ weekStartDay: value as WeekStartDay })
+            handleUpdateUserSettings({ weekStartDay: value as WeekStartDay })
           }
+          disabled={updateUserSettingsMutation.isPending}
         >
           <SelectTrigger>
             <SelectValue />
@@ -188,8 +254,11 @@ export function UserSettings() {
         description="Your current time zone setting"
       >
         <Select
-          value={user.timeZone}
-          onValueChange={(value) => updateUserSettings({ timeZone: value })}
+          value={(userSettings as PrismaUserSettings)?.timeZone}
+          onValueChange={(value) =>
+            handleUpdateUserSettings({ timeZone: value })
+          }
+          disabled={updateUserSettingsMutation.isPending}
         >
           <SelectTrigger>
             <SelectValue />

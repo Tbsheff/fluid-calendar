@@ -11,8 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useLogViewStore } from "@/store/logview";
-
 import { LogLevel } from "@/types/logging";
 
 interface LogFiltersProps {
@@ -23,13 +21,17 @@ interface LogFiltersProps {
     to: string;
     search: string;
   };
+  sources: string[];
   onChange: (filters: LogFiltersProps["filters"]) => void;
   disabled?: boolean;
 }
 
-export function LogFilters({ filters, onChange, disabled }: LogFiltersProps) {
-  const { sources } = useLogViewStore();
-
+export function LogFilters({
+  filters,
+  sources,
+  onChange,
+  disabled,
+}: LogFiltersProps) {
   const handleChange = (field: keyof typeof filters, value: string) => {
     onChange({
       ...filters,

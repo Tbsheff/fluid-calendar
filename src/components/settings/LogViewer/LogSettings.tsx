@@ -22,6 +22,7 @@ import {
 
 import { logger } from "@/lib/logger";
 import { LogSettings as LogSettingsType } from "@/lib/logger/types";
+import { trpc } from "@/lib/trpc/client";
 
 const LOG_SOURCE = "LogSettings";
 
@@ -36,63 +37,21 @@ export function LogSettings() {
       debug: 3,
     },
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const utils = trpc.useUtils();
 
   logger.info("LogSettings component mounted", undefined, LOG_SOURCE);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  // Use tRPC query for log settings
+  const {
+    data: logSettingsData,
+    isLoading: loading,
+    error: queryError,
+  } = trpc.logs.getSettings.useQuery();
 
-  const fetchSettings = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch("/api/logs/settings");
-      if (!response.ok) throw new Error("Failed to fetch settings");
-      const data = await response.json();
-      setSettings(data);
-      logger.debug(
-        "Log settings fetched successfully",
-        {
-          settings: JSON.stringify(data),
-        },
-        LOG_SOURCE
-      );
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to fetch settings";
-      logger.error(
-        "Failed to fetch log settings",
-        {
-          error: errorMessage,
-        },
-        LOG_SOURCE
-      );
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      setSaved(false);
-
-      const response = await fetch("/api/logs/settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(settings),
-      });
-
-      if (!response.ok) throw new Error("Failed to update settings");
-
+  // Use tRPC mutation for updating log settings
+  const updateLogSettingsMutation = trpc.logs.updateSettings.useMutation({
+    onSuccess: () => {
       logger.info(
         "Log settings updated successfully",
         {
@@ -102,22 +61,62 @@ export function LogSettings() {
       );
       setSaved(true);
       setTimeout(() => setSaved(false), 3000); // Clear saved message after 3 seconds
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to update settings";
+      utils.logs.getSettings.invalidate();
+    },
+    onError: (error) => {
       logger.error(
         "Failed to update log settings",
         {
-          error: errorMessage,
+          error: error.message,
           settings: JSON.stringify(settings),
         },
         LOG_SOURCE
       );
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  // Update local state when data is loaded
+  useEffect(() => {
+    if (logSettingsData) {
+      setSettings({
+        logLevel: logSettingsData.logLevel as LogSettingsType["logLevel"],
+        logDestination:
+          logSettingsData.logDestination as LogSettingsType["logDestination"],
+        logRetention: logSettingsData.logRetention,
+      });
+      logger.debug(
+        "Log settings fetched successfully",
+        {
+          settings: JSON.stringify(logSettingsData),
+        },
+        LOG_SOURCE
+      );
+    }
+  }, [logSettingsData]);
+
+  // Handle loading error
+  useEffect(() => {
+    if (queryError) {
+      logger.error(
+        "Failed to fetch log settings",
+        {
+          error: queryError.message,
+        },
+        LOG_SOURCE
+      );
+    }
+  }, [queryError]);
+
+  const handleSave = async () => {
+    try {
+      await updateLogSettingsMutation.mutateAsync(settings);
+    } catch (error) {
+      // Error is already handled in the mutation onError callback
+      console.error("Save failed:", error);
     }
   };
+
+  const error = queryError?.message || updateLogSettingsMutation.error?.message;
 
   if (loading) {
     return (

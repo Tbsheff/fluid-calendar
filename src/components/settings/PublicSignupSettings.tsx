@@ -17,53 +17,54 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
+import { trpc } from "@/lib/trpc/client";
+
 export default function PublicSignupSettings() {
   const [publicSignup, setPublicSignup] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const utils = trpc.useUtils();
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const response = await fetch("/api/system-settings");
-        if (response.ok) {
-          const data = await response.json();
-          setPublicSignup(data.publicSignup || false);
-        }
-      } catch (error) {
-        console.error("Failed to fetch system settings:", error);
-        toast.error("Failed to load settings");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Use tRPC query for system settings
+  const {
+    data: systemSettingsData,
+    isLoading,
+    error,
+  } = trpc.systemSettings.get.useQuery();
 
-    fetchSettings();
-  }, []);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      const response = await fetch("/api/system-settings", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          publicSignup,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success("Settings saved successfully");
-      } else {
-        toast.error("Failed to save settings");
-      }
-    } catch (error) {
+  // Use tRPC mutation for updating system settings
+  const updateSystemSettingsMutation = trpc.systemSettings.update.useMutation({
+    onSuccess: () => {
+      toast.success("Settings saved successfully");
+      utils.systemSettings.get.invalidate();
+    },
+    onError: (error) => {
       console.error("Failed to save system settings:", error);
       toast.error("Failed to save settings");
-    } finally {
-      setIsSaving(false);
+    },
+  });
+
+  // Update local state when data is loaded
+  useEffect(() => {
+    if (systemSettingsData) {
+      setPublicSignup(systemSettingsData.publicSignup || false);
+    }
+  }, [systemSettingsData]);
+
+  // Handle loading error
+  useEffect(() => {
+    if (error) {
+      console.error("Failed to fetch system settings:", error);
+      toast.error("Failed to load settings");
+    }
+  }, [error]);
+
+  const handleSave = async () => {
+    try {
+      await updateSystemSettingsMutation.mutateAsync({
+        publicSignup,
+      });
+    } catch (error) {
+      // Error is already handled in the mutation onError callback
+      console.error("Save failed:", error);
     }
   };
 
@@ -98,8 +99,11 @@ export default function PublicSignupSettings() {
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={handleSave} disabled={isLoading || isSaving}>
-          {isSaving ? (
+        <Button
+          onClick={handleSave}
+          disabled={isLoading || updateSystemSettingsMutation.isPending}
+        >
+          {updateSystemSettingsMutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Saving...

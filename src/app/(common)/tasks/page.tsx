@@ -13,78 +13,221 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/project";
-import { useTaskStore } from "@/store/task";
 import { useTaskModalStore } from "@/store/taskModal";
 import { useTaskPageSettings } from "@/store/taskPageSettings";
 
-import { NewTask, Task, TaskStatus } from "@/types/task";
+import { ProjectStatus } from "@/types/project";
+import {
+  EnergyLevel,
+  NewTask,
+  Priority,
+  Task,
+  TaskStatus,
+  TimePreference,
+} from "@/types/task";
 
 export default function TasksPage() {
-  const {
-    tasks,
-    tags,
-    loading,
-    error,
-    fetchTasks,
-    fetchTags,
-    createTask,
-    updateTask,
-    deleteTask,
-    createTag,
-    scheduleAllTasks,
-  } = useTaskStore();
   const { fetchProjects, activeProject } = useProjectStore();
   const { viewMode, setViewMode } = useTaskPageSettings();
   const { isOpen, setOpen } = useTaskModalStore();
+  const utils = trpc.useUtils();
 
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [initialProjectId, setInitialProjectId] = useState<
     string | null | undefined
   >(undefined);
 
-  // Fetch tasks and tags on mount
+  // tRPC queries
+  const {
+    data: tasks = [],
+    isLoading: tasksLoading,
+    error: tasksError,
+  } = trpc.tasks.getAll.useQuery({});
+
+  const {
+    data: tags = [],
+    isLoading: tagsLoading,
+    error: tagsError,
+  } = trpc.tags.getAll.useQuery();
+
+  // tRPC mutations
+  const createTaskMutation = trpc.tasks.create.useMutation({
+    onSuccess: () => {
+      utils.tasks.getAll.invalidate();
+      utils.projects.getAll.invalidate();
+      toast.success("Task created successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to create task", {
+        description: error.message,
+      });
+    },
+  });
+
+  const updateTaskMutation = trpc.tasks.update.useMutation({
+    onSuccess: () => {
+      utils.tasks.getAll.invalidate();
+      utils.projects.getAll.invalidate();
+      toast.success("Task updated successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to update task", {
+        description: error.message,
+      });
+    },
+  });
+
+  const deleteTaskMutation = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      utils.tasks.getAll.invalidate();
+      utils.projects.getAll.invalidate();
+      toast.success("Task deleted successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete task", {
+        description: error.message,
+      });
+    },
+  });
+
+  const createTagMutation = trpc.tags.create.useMutation({
+    onSuccess: () => {
+      utils.tags.getAll.invalidate();
+      toast.success("Tag created successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to create tag", {
+        description: error.message,
+      });
+    },
+  });
+
+  const scheduleAllTasksMutation = trpc.tasks.scheduleAll.useMutation({
+    onSuccess: () => {
+      utils.tasks.getAll.invalidate();
+      toast.success("Tasks scheduled successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to schedule tasks", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Fetch projects on mount
   useEffect(() => {
-    fetchTasks();
-    fetchTags();
     fetchProjects();
-  }, [fetchTasks, fetchTags, fetchProjects]);
+  }, [fetchProjects]);
 
   const handleCreateTask = async (task: NewTask) => {
-    await createTask(task);
-    await fetchTasks();
-    await fetchProjects();
+    // Convert NewTask to the format expected by tRPC
+    const taskData = {
+      title: task.title,
+      description: task.description || null,
+      status: task.status.toUpperCase() as
+        | "TODO"
+        | "IN_PROGRESS"
+        | "COMPLETED"
+        | "CANCELLED",
+      dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      startDate: task.startDate ? task.startDate.toISOString() : null,
+      duration: task.duration || null,
+      priority: task.priority || null,
+      energyLevel: task.energyLevel?.toUpperCase() as
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH"
+        | null,
+      preferredTime: task.preferredTime?.toUpperCase() as
+        | "MORNING"
+        | "AFTERNOON"
+        | "EVENING"
+        | "ANYTIME"
+        | null,
+      isAutoScheduled: task.isAutoScheduled || false,
+      scheduleLocked: task.scheduleLocked || false,
+      isRecurring: task.isRecurring || false,
+      recurrenceRule: task.recurrenceRule || null,
+      projectId: task.projectId || null,
+      tagIds: task.tagIds || [],
+    };
+    createTaskMutation.mutate(taskData);
   };
 
   const handleUpdateTask = async (task: NewTask) => {
     if (selectedTask) {
-      await updateTask(selectedTask.id, task);
-      await fetchTasks();
-      await fetchProjects();
+      // Convert NewTask to the format expected by tRPC
+      const taskData = {
+        title: task.title,
+        description: task.description || null,
+        status: task.status.toUpperCase() as
+          | "TODO"
+          | "IN_PROGRESS"
+          | "COMPLETED"
+          | "CANCELLED",
+        dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        startDate: task.startDate ? task.startDate.toISOString() : null,
+        duration: task.duration || null,
+        priority: task.priority || null,
+        energyLevel: task.energyLevel?.toUpperCase() as
+          | "LOW"
+          | "MEDIUM"
+          | "HIGH"
+          | null,
+        preferredTime: task.preferredTime?.toUpperCase() as
+          | "MORNING"
+          | "AFTERNOON"
+          | "EVENING"
+          | "ANYTIME"
+          | null,
+        isAutoScheduled: task.isAutoScheduled || false,
+        scheduleLocked: task.scheduleLocked || false,
+        isRecurring: task.isRecurring || false,
+        recurrenceRule: task.recurrenceRule || null,
+        projectId: task.projectId || null,
+        tagIds: task.tagIds || [],
+      };
+      updateTaskMutation.mutate({
+        taskId: selectedTask.id,
+        data: taskData,
+      });
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
     if (confirm("Are you sure you want to delete this task?")) {
-      await deleteTask(taskId);
-      await fetchTasks();
-      await fetchProjects();
+      deleteTaskMutation.mutate({ taskId });
     }
   };
 
   const handleStatusChange = async (taskId: string, status: TaskStatus) => {
-    await updateTask(taskId, { status });
-    await fetchTasks();
-    await fetchProjects();
+    updateTaskMutation.mutate({
+      taskId,
+      data: {
+        status: status.toUpperCase() as
+          | "TODO"
+          | "IN_PROGRESS"
+          | "COMPLETED"
+          | "CANCELLED",
+      },
+    });
   };
 
   const handleCreateTag = async (name: string, color?: string) => {
     try {
-      const newTag = await createTag({ name, color });
-      await fetchTags(); // Refresh tags after creation
-      return newTag;
+      const result = await createTagMutation.mutateAsync({
+        name,
+        color: color || null,
+      });
+      // Convert the result to match the expected Tag interface
+      return {
+        ...result,
+        color: result.color || undefined,
+      };
     } catch (error) {
       console.error("Error creating tag:", error);
       throw error;
@@ -96,12 +239,65 @@ export default function TasksPage() {
     const { id, tags, createdAt, updatedAt, project, ...updates } = task;
     console.log("Updating task:", { id, updates });
     try {
-      await updateTask(id, updates);
-      await fetchTasks();
-      // If projectId was changed, refresh projects to update task counts
-      if ("projectId" in updates) {
-        await fetchProjects();
-      }
+      // Convert the updates to the format expected by tRPC
+      const taskData = {
+        title: updates.title,
+        description: updates.description,
+        status: updates.status?.toUpperCase() as
+          | "TODO"
+          | "IN_PROGRESS"
+          | "COMPLETED"
+          | "CANCELLED"
+          | undefined,
+        dueDate: updates.dueDate
+          ? new Date(updates.dueDate).toISOString()
+          : null,
+        startDate: updates.startDate
+          ? new Date(updates.startDate).toISOString()
+          : null,
+        duration: updates.duration,
+        priority: updates.priority,
+        energyLevel: updates.energyLevel?.toUpperCase() as
+          | "LOW"
+          | "MEDIUM"
+          | "HIGH"
+          | null
+          | undefined,
+        preferredTime: updates.preferredTime?.toUpperCase() as
+          | "MORNING"
+          | "AFTERNOON"
+          | "EVENING"
+          | "ANYTIME"
+          | null
+          | undefined,
+        isAutoScheduled: updates.isAutoScheduled,
+        scheduleLocked: updates.scheduleLocked,
+        scheduledStart: updates.scheduledStart
+          ? new Date(updates.scheduledStart).toISOString()
+          : null,
+        scheduledEnd: updates.scheduledEnd
+          ? new Date(updates.scheduledEnd).toISOString()
+          : null,
+        postponedUntil: updates.postponedUntil
+          ? new Date(updates.postponedUntil).toISOString()
+          : null,
+        completedAt: updates.completedAt
+          ? new Date(updates.completedAt).toISOString()
+          : null,
+        isRecurring: updates.isRecurring,
+        recurrenceRule: updates.recurrenceRule,
+        projectId: updates.projectId,
+        externalTaskId: updates.externalTaskId,
+        source: updates.source,
+        externalListId: updates.externalListId,
+        lastSyncedAt: updates.lastSyncedAt
+          ? new Date(updates.lastSyncedAt).toISOString()
+          : null,
+      };
+      updateTaskMutation.mutate({
+        taskId: id,
+        data: taskData,
+      });
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error("Failed to update task", {
@@ -109,6 +305,34 @@ export default function TasksPage() {
       });
     }
   };
+
+  const loading = tasksLoading || tagsLoading;
+  const error = tasksError || tagsError;
+
+  // Convert tRPC response types to component-expected types
+  const convertedTasks: Task[] = tasks.map((task) => ({
+    ...task,
+    status: task.status.toLowerCase() as TaskStatus,
+    priority: task.priority?.toLowerCase() as Priority | null,
+    energyLevel: task.energyLevel?.toLowerCase() as EnergyLevel | null,
+    preferredTime: task.preferredTime?.toLowerCase() as TimePreference | null,
+    project: task.project
+      ? {
+          ...task.project,
+          status: task.project.status.toLowerCase() as ProjectStatus,
+        }
+      : null,
+    tags:
+      task.tags?.map((tag) => ({
+        ...tag,
+        color: tag.color || undefined,
+      })) || [],
+  }));
+
+  const convertedTags = tags.map((tag) => ({
+    ...tag,
+    color: tag.color || undefined,
+  }));
 
   return (
     <div className="flex h-full">
@@ -149,10 +373,13 @@ export default function TasksPage() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  scheduleAllTasks();
+                  scheduleAllTasksMutation.mutate({});
                 }}
+                disabled={scheduleAllTasksMutation.isPending}
               >
-                Auto Schedule
+                {scheduleAllTasksMutation.isPending
+                  ? "Scheduling..."
+                  : "Auto Schedule"}
               </Button>
               <Button
                 data-create-task-button
@@ -186,7 +413,7 @@ export default function TasksPage() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
           {viewMode === "list" ? (
             <TaskList
-              tasks={tasks}
+              tasks={convertedTasks}
               onEdit={(task) => {
                 setSelectedTask(task);
                 setOpen(true);
@@ -197,7 +424,7 @@ export default function TasksPage() {
             />
           ) : (
             <BoardView
-              tasks={tasks}
+              tasks={convertedTasks}
               onEdit={(task) => {
                 setSelectedTask(task);
                 setOpen(true);
@@ -217,7 +444,7 @@ export default function TasksPage() {
           }}
           onSave={selectedTask ? handleUpdateTask : handleCreateTask}
           task={selectedTask}
-          tags={tags}
+          tags={convertedTags}
           onCreateTag={handleCreateTag}
           initialProjectId={initialProjectId}
         />

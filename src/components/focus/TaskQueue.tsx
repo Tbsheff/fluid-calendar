@@ -15,6 +15,8 @@ import { Task, TaskStatus } from "@/types/task";
 
 export function TaskQueue() {
   const { switchToTask, currentTaskId, getQueuedTasks } = useFocusModeStore();
+
+  // Use task store for now - focus mode store migration will handle tRPC integration
   const { tasks } = useTaskStore();
 
   // State to track expanded sections

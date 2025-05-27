@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 const LOG_SOURCE = "PasswordResetForm";
 
@@ -55,6 +56,11 @@ export function PasswordResetForm() {
   const token = searchParams.get("token");
   const [isLoading, setIsLoading] = useState(false);
 
+  // tRPC mutations
+  const requestPasswordResetMutation =
+    trpc.auth.requestPasswordReset.useMutation();
+  const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
+
   const {
     register: registerRequest,
     handleSubmit: handleSubmitRequest,
@@ -75,37 +81,30 @@ export function PasswordResetForm() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/reset-password/request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+      await requestPasswordResetMutation.mutateAsync({
+        email: data.email,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to request password reset");
-      }
 
       toast.success("Password reset email sent", {
         description: "Please check your email for further instructions.",
       });
-
-      // In development, show the reset link
-      if (process.env.NODE_ENV === "development" && result.debug) {
-        console.log("Debug - Reset URL:", result.debug.resetUrl);
-      }
     } catch (error) {
       logger.error(
         "Error requesting password reset",
         { error: error instanceof Error ? error.message : "Unknown error" },
         LOG_SOURCE
       );
-      toast.error("Failed to request password reset", {
-        description: "Please try again later.",
-      });
+
+      // Handle tRPC errors
+      if (error && typeof error === "object" && "message" in error) {
+        toast.error("Failed to request password reset", {
+          description: error.message as string,
+        });
+      } else {
+        toast.error("Failed to request password reset", {
+          description: "Please try again later.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -116,22 +115,10 @@ export function PasswordResetForm() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/reset-password/reset", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          password: data.password,
-        }),
+      await resetPasswordMutation.mutateAsync({
+        token,
+        password: data.password,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to reset password");
-      }
 
       toast.success("Password reset successful", {
         description: "You can now sign in with your new password.",
@@ -145,10 +132,17 @@ export function PasswordResetForm() {
         { error: error instanceof Error ? error.message : "Unknown error" },
         LOG_SOURCE
       );
-      toast.error("Failed to reset password", {
-        description:
-          error instanceof Error ? error.message : "Please try again later.",
-      });
+
+      // Handle tRPC errors
+      if (error && typeof error === "object" && "message" in error) {
+        toast.error("Failed to reset password", {
+          description: error.message as string,
+        });
+      } else {
+        toast.error("Failed to reset password", {
+          description: "Please try again later.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -177,7 +171,7 @@ export function PasswordResetForm() {
                 type="password"
                 {...registerReset("password")}
                 className={resetErrors.password ? "border-red-500" : ""}
-                disabled={isLoading}
+                disabled={isLoading || resetPasswordMutation.isPending}
               />
               {resetErrors.password && (
                 <p className="text-sm text-red-500">
@@ -193,7 +187,7 @@ export function PasswordResetForm() {
                 type="password"
                 {...registerReset("confirmPassword")}
                 className={resetErrors.confirmPassword ? "border-red-500" : ""}
-                disabled={isLoading}
+                disabled={isLoading || resetPasswordMutation.isPending}
               />
               {resetErrors.confirmPassword && (
                 <p className="text-sm text-red-500">
@@ -202,8 +196,14 @@ export function PasswordResetForm() {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Resetting Password..." : "Reset Password"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading || resetPasswordMutation.isPending}
+            >
+              {isLoading || resetPasswordMutation.isPending
+                ? "Resetting Password..."
+                : "Reset Password"}
             </Button>
           </form>
         ) : (
@@ -219,7 +219,7 @@ export function PasswordResetForm() {
                 placeholder="name@example.com"
                 {...registerRequest("email")}
                 className={requestErrors.email ? "border-red-500" : ""}
-                disabled={isLoading}
+                disabled={isLoading || requestPasswordResetMutation.isPending}
               />
               {requestErrors.email && (
                 <p className="text-sm text-red-500">
@@ -228,8 +228,14 @@ export function PasswordResetForm() {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Sending Reset Link..." : "Send Reset Link"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading || requestPasswordResetMutation.isPending}
+            >
+              {isLoading || requestPasswordResetMutation.isPending
+                ? "Sending Reset Link..."
+                : "Send Reset Link"}
             </Button>
           </form>
         )}

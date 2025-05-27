@@ -50,6 +50,13 @@ export const PasswordResetInputSchema = z.object({
     ),
 });
 
+/**
+ * tRPC input schema for checking admin status
+ */
+export const CheckAdminStatusInputSchema = z.object({
+  // No additional input needed - uses user context from session
+});
+
 // Export types
 export type CheckAdminInput = z.infer<typeof CheckAdminInputSchema>;
 export type PublicSignupStatusInput = z.infer<
@@ -60,3 +67,4 @@ export type PasswordResetRequestInput = z.infer<
   typeof PasswordResetRequestInputSchema
 >;
 export type PasswordResetInput = z.infer<typeof PasswordResetInputSchema>;
+export type CheckAdminStatusInput = z.infer<typeof CheckAdminStatusInputSchema>;

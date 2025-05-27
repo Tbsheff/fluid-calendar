@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 const LOG_SOURCE = "CalDAVAccountForm";
 
@@ -56,6 +57,10 @@ export function CalDAVAccountForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<TestResult | null>(null);
 
+  // tRPC mutations and queries
+  const authenticateMutation = trpc.calendar.caldav.authenticate.useMutation();
+  const utils = trpc.useUtils();
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -74,6 +79,13 @@ export function CalDAVAccountForm({
   };
 
   const handleTest = async () => {
+    // TODO: Fix tRPC query call for testConnection
+    // Temporarily disabled due to tRPC client setup issues
+    setErrorMessage(
+      "Test functionality temporarily disabled. Please use 'Connect Account' to test the connection."
+    );
+    return;
+
     // Validate form
     if (!formData.serverUrl || !formData.username || !formData.password) {
       setErrorMessage("Please fill in all required fields");
@@ -99,23 +111,17 @@ export function CalDAVAccountForm({
         serverUrl = serverUrl.slice(0, -1);
       }
 
-      const response = await fetch("/api/calendar/caldav/test", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          serverUrl,
-          username: formData.username,
-          password: formData.password,
-          path: formData.path || undefined,
-        }),
+      // Use the tRPC utils to call the query
+      const data = await utils.client.calendar.caldav.testConnection.query({
+        serverUrl,
+        username: formData.username,
+        password: formData.password,
+        path: formData.path || undefined,
       });
 
-      const data = await response.json();
       setTestResults(data as TestResult);
 
-      if (!response.ok || !data.success) {
+      if (!data.success) {
         throw new Error(data.error || "Failed to connect to CalDAV server");
       }
 
@@ -124,7 +130,8 @@ export function CalDAVAccountForm({
         { serverUrl, username: formData.username },
         LOG_SOURCE
       );
-    } catch (error) {
+    } catch (err: unknown) {
+      const error = err as Error;
       logger.error(
         "CalDAV test connection failed",
         {
@@ -132,11 +139,13 @@ export function CalDAVAccountForm({
         },
         LOG_SOURCE
       );
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to connect to CalDAV server"
-      );
+
+      // Handle tRPC errors
+      if (err && typeof err === "object" && "message" in (err as object)) {
+        setErrorMessage((err as { message: string }).message);
+      } else {
+        setErrorMessage("Failed to connect to CalDAV server");
+      }
     } finally {
       setIsTesting(false);
     }
@@ -169,27 +178,12 @@ export function CalDAVAccountForm({
         serverUrl = serverUrl.slice(0, -1);
       }
 
-      const response = await fetch("/api/calendar/caldav/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          serverUrl,
-          username: formData.username,
-          password: formData.password,
-          path: formData.path || undefined,
-        }),
+      await authenticateMutation.mutateAsync({
+        serverUrl,
+        username: formData.username,
+        password: formData.password,
+        path: formData.path || undefined,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Failed to connect to CalDAV server"
-        );
-      }
-
-      await response.json();
 
       alert(`Successfully connected to CalDAV server for ${formData.username}`);
 
@@ -204,11 +198,13 @@ export function CalDAVAccountForm({
         },
         LOG_SOURCE
       );
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to connect to CalDAV server"
-      );
+
+      // Handle tRPC errors
+      if (error && typeof error === "object" && "message" in error) {
+        setErrorMessage(error.message as string);
+      } else {
+        setErrorMessage("Failed to connect to CalDAV server");
+      }
     } finally {
       setIsSubmitting(false);
     }

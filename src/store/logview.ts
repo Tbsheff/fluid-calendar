@@ -65,6 +65,11 @@ export const useLogViewStore = create<LogViewState>()(
       loading: false,
       error: null,
       setFilters: (newFilters) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.setFilters() is deprecated. Use trpc.logs.get.useQuery() with filter parameters instead."
+        );
+
         set((state) => ({
           filters: { ...state.filters, ...newFilters },
           pagination: { ...state.pagination, current: 1 },
@@ -72,18 +77,34 @@ export const useLogViewStore = create<LogViewState>()(
         get().fetchLogs();
       },
       setPagination: (newPagination) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.setPagination() is deprecated. Use trpc.logs.get.useQuery() with pagination parameters instead."
+        );
+
         set((state) => ({
           pagination: { ...state.pagination, ...newPagination },
         }));
         get().fetchLogs();
       },
-      addSource: (source) =>
+      addSource: (source) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.addSource() is deprecated. Use trpc.logs.getSources.useQuery() instead."
+        );
+
         set((state) => ({
           sources: state.sources.includes(source)
             ? state.sources
             : [...state.sources, source],
-        })),
+        }));
+      },
       fetchSources: async () => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.fetchSources() is deprecated. Use trpc.logs.getSources.useQuery() instead."
+        );
+
         try {
           const response = await fetch("/api/logs/sources");
           if (!response.ok) throw new Error("Failed to fetch log sources");
@@ -114,6 +135,11 @@ export const useLogViewStore = create<LogViewState>()(
         }
       },
       fetchLogs: async () => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.fetchLogs() is deprecated. Use trpc.logs.get.useQuery() instead."
+        );
+
         const state = get();
         set({ loading: true, error: null });
 
@@ -173,9 +199,28 @@ export const useLogViewStore = create<LogViewState>()(
           set({ error: errorMessage, loading: false });
         }
       },
-      setLoading: (loading: boolean) => set({ loading }),
-      setError: (error: string | null) => set({ error }),
-      reset: () =>
+      setLoading: (loading: boolean) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.setLoading() is deprecated. tRPC hooks provide loading states automatically."
+        );
+
+        set({ loading });
+      },
+      setError: (error: string | null) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.setError() is deprecated. tRPC hooks provide error states automatically."
+        );
+
+        set({ error });
+      },
+      reset: () => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useLogViewStore.reset() is deprecated. Use component state or tRPC utilities instead."
+        );
+
         set({
           filters: DEFAULT_FILTERS,
           pagination: DEFAULT_PAGINATION,
@@ -185,7 +230,8 @@ export const useLogViewStore = create<LogViewState>()(
           totalPages: 0,
           loading: false,
           error: null,
-        }),
+        });
+      },
     }),
     {
       name: "log-view-store",

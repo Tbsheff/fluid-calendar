@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 
 import { HiMenu } from "react-icons/hi";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
+import { toast } from "sonner";
 
 import { DayView } from "@/components/calendar/DayView";
 import { FeedManager } from "@/components/calendar/FeedManager";
@@ -16,6 +17,7 @@ import { SponsorshipBanner } from "@/components/ui/sponsorship-banner";
 
 import { isSaasEnabled } from "@/lib/config";
 import { addDays, formatDate, newDate, subDays } from "@/lib/date-utils";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 import {
@@ -23,7 +25,6 @@ import {
   useCalendarUIStore,
   useViewStore,
 } from "@/store/calendar";
-import { useTaskStore } from "@/store/task";
 
 import { CalendarEvent, CalendarFeed } from "@/types/calendar";
 
@@ -47,27 +48,52 @@ export function Calendar({
 }: CalendarProps) {
   const { date: currentDate, setDate, view, setView } = useViewStore();
   const { isSidebarOpen, setSidebarOpen, isHydrated } = useCalendarUIStore();
-  const { scheduleAllTasks } = useTaskStore();
   const { setFeeds, setEvents } = useCalendarStore();
 
-  // Use initial data from server for hydration
+  // Use tRPC queries for data fetching
+  const { data: feeds = initialFeeds } = trpc.feeds.getAll.useQuery(
+    {},
+    {
+      refetchOnMount: initialFeeds.length === 0,
+    }
+  );
+
+  const { data: events = initialEvents } = trpc.events.getAll.useQuery(
+    {},
+    {
+      refetchOnMount: initialEvents.length === 0,
+    }
+  );
+
+  const { refetch: refetchTasks } = trpc.tasks.getAll.useQuery({});
+
+  // Use tRPC mutation for auto-scheduling
+  const scheduleAllTasksMutation = trpc.tasks.scheduleAll.useMutation({
+    onSuccess: () => {
+      toast.success("Tasks scheduled successfully");
+      refetchTasks();
+    },
+    onError: (error) => {
+      toast.error("Failed to schedule tasks", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Update calendar store with tRPC data for backward compatibility with calendar views
   useEffect(() => {
-    if (initialFeeds.length > 0) {
-      setFeeds(initialFeeds);
+    if (feeds.length > 0) {
+      // Update calendar store for backward compatibility
+      setFeeds(feeds as CalendarFeed[]);
     }
+  }, [feeds, setFeeds]);
 
-    if (initialEvents.length > 0) {
-      setEvents(initialEvents);
+  useEffect(() => {
+    if (events.length > 0) {
+      // Update calendar store for backward compatibility
+      setEvents(events as CalendarEvent[]);
     }
-
-    // Only fetch from database if we didn't get initial data
-    if (!initialFeeds.length || !initialEvents.length) {
-      useCalendarStore.getState().loadFromDatabase();
-    }
-
-    // Always fetch tasks since they're not pre-loaded
-    useTaskStore.getState().fetchTasks();
-  }, [initialFeeds, initialEvents, setFeeds, setEvents]);
+  }, [events, setEvents]);
 
   const handlePrevWeek = () => {
     if (view === "month" || view === "multiMonth") {
@@ -92,7 +118,12 @@ export function Calendar({
   };
 
   const handleAutoSchedule = async () => {
-    await scheduleAllTasks();
+    try {
+      await scheduleAllTasksMutation.mutateAsync({});
+    } catch (error) {
+      // Error is already handled in the mutation onError callback
+      console.error("Failed to schedule tasks:", error);
+    }
   };
 
   return (
@@ -143,9 +174,12 @@ export function Calendar({
 
             <button
               onClick={handleAutoSchedule}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+              disabled={scheduleAllTasksMutation.isPending}
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
             >
-              Auto Schedule
+              {scheduleAllTasksMutation.isPending
+                ? "Scheduling..."
+                : "Auto Schedule"}
             </button>
 
             <div className="flex items-center gap-2">

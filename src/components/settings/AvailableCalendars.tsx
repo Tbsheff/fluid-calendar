@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import { trpc } from "@/lib/trpc/client";
 
 interface AvailableCalendar {
   id: string;
@@ -19,95 +23,104 @@ interface Props {
 }
 
 export function AvailableCalendars({ accountId, provider }: Props) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [calendars, setCalendars] = useState<AvailableCalendar[]>([]);
   const [addingCalendars, setAddingCalendars] = useState<Set<string>>(
     new Set()
   );
 
-  const loadAvailableCalendars = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      let endpoint;
+  // Use conditional tRPC queries based on provider
+  const googleQuery = trpc.calendar.google.getAvailableCalendars.useQuery(
+    { accountId },
+    { enabled: provider === "GOOGLE" }
+  );
 
-      switch (provider) {
-        case "GOOGLE":
-          endpoint = `/api/calendar/google/available?accountId=${accountId}`;
-          break;
-        case "OUTLOOK":
-          endpoint = `/api/calendar/outlook/available?accountId=${accountId}`;
-          break;
-        case "CALDAV":
-          endpoint = `/api/calendar/caldav/available?accountId=${accountId}`;
-          break;
-        default:
-          throw new Error(`Unsupported provider: ${provider}`);
-      }
+  const outlookQuery = trpc.calendar.outlook.getAvailableCalendars.useQuery(
+    { accountId },
+    { enabled: provider === "OUTLOOK" }
+  );
 
-      const response = await fetch(endpoint);
-      if (!response.ok) throw new Error("Failed to fetch calendars");
-      const data = await response.json();
-      setCalendars(data);
-    } catch (error) {
-      console.error("Failed to load available calendars:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [accountId, provider]);
+  const caldavQuery = trpc.calendar.caldav.getAvailableCalendars.useQuery(
+    { accountId },
+    { enabled: provider === "CALDAV" }
+  );
 
-  // Load calendars when component mounts
-  useEffect(() => {
-    loadAvailableCalendars();
-  }, [loadAvailableCalendars]);
+  // Get the appropriate query based on provider
+  const currentQuery =
+    provider === "GOOGLE"
+      ? googleQuery
+      : provider === "OUTLOOK"
+        ? outlookQuery
+        : caldavQuery;
+
+  const calendars = (currentQuery.data as AvailableCalendar[]) || [];
+  const isLoading = currentQuery.isLoading;
+
+  // Use tRPC mutations for adding calendars
+  const addGoogleCalendarMutation =
+    trpc.calendar.google.addCalendar.useMutation({
+      onSuccess: () => {
+        toast.success("Google Calendar added successfully");
+        googleQuery.refetch();
+      },
+      onError: (error) => {
+        toast.error("Failed to add Google Calendar", {
+          description: error.message,
+        });
+      },
+    });
+
+  const addOutlookCalendarMutation =
+    trpc.calendar.outlook.addCalendar.useMutation({
+      onSuccess: () => {
+        toast.success("Outlook Calendar added successfully");
+        outlookQuery.refetch();
+      },
+      onError: (error) => {
+        toast.error("Failed to add Outlook Calendar", {
+          description: error.message,
+        });
+      },
+    });
+
+  const addCalDAVCalendarMutation =
+    trpc.calendar.caldav.addCalendar.useMutation({
+      onSuccess: () => {
+        toast.success("CalDAV Calendar added successfully");
+        caldavQuery.refetch();
+      },
+      onError: (error) => {
+        toast.error("Failed to add CalDAV Calendar", {
+          description: error.message,
+        });
+      },
+    });
 
   const handleAddCalendar = useCallback(
     async (calendar: AvailableCalendar) => {
       try {
         setAddingCalendars((prev) => new Set(prev).add(calendar.id));
-        let endpoint;
+
+        const calendarData = {
+          accountId,
+          calendarId: calendar.id,
+          name: calendar.name,
+          color: calendar.color,
+        };
 
         switch (provider) {
           case "GOOGLE":
-            endpoint = "/api/calendar/google";
+            await addGoogleCalendarMutation.mutateAsync(calendarData);
             break;
           case "OUTLOOK":
-            endpoint = "/api/calendar/outlook/sync";
+            await addOutlookCalendarMutation.mutateAsync(calendarData);
             break;
           case "CALDAV":
-            endpoint = "/api/calendar/caldav";
+            await addCalDAVCalendarMutation.mutateAsync(calendarData);
             break;
           default:
             throw new Error(`Unsupported provider: ${provider}`);
         }
-
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            accountId,
-            calendarId: calendar.id,
-            name: calendar.name,
-            color: calendar.color,
-          }),
-        });
-
-        if (!response.ok) throw new Error("Failed to add calendar");
-
-        // Remove from available list
-        setCalendars((prev) =>
-          prev.filter((c) => {
-            if (calendar.alreadyAdded) {
-              return false;
-            }
-            if (c.id === calendar.id) {
-              return false;
-            }
-            return true;
-          })
-        );
       } catch (error) {
+        // Error is already handled in the mutation onError callback
         console.error("Failed to add calendar:", error);
       } finally {
         setAddingCalendars((prev) => {
@@ -117,8 +130,18 @@ export function AvailableCalendars({ accountId, provider }: Props) {
         });
       }
     },
-    [accountId, provider]
+    [
+      accountId,
+      provider,
+      addGoogleCalendarMutation,
+      addOutlookCalendarMutation,
+      addCalDAVCalendarMutation,
+    ]
   );
+
+  const handleRefresh = useCallback(() => {
+    currentQuery.refetch();
+  }, [currentQuery]);
 
   if (isLoading) {
     return (
@@ -135,6 +158,14 @@ export function AvailableCalendars({ accountId, provider }: Props) {
             <Skeleton className="h-8 w-16" />
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (currentQuery.error) {
+    return (
+      <div className="py-4 text-center text-destructive">
+        Failed to load calendars: {currentQuery.error.message}
       </div>
     );
   }
@@ -176,7 +207,7 @@ export function AvailableCalendars({ accountId, provider }: Props) {
         <Button
           variant="outline"
           size="sm"
-          onClick={loadAvailableCalendars}
+          onClick={handleRefresh}
           disabled={isLoading}
         >
           Refresh

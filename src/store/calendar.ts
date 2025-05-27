@@ -233,6 +233,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   // Feed management
   addFeed: async (name, url, type, color) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.addFeed() is deprecated. Use trpc.calendar.google.addCalendar.useMutation(), trpc.calendar.outlook.addCalendar.useMutation(), or trpc.calendar.caldav.addCalendar.useMutation() instead."
+    );
+
     const id = uuidv4();
     const feed: CalendarFeed = {
       id,
@@ -290,6 +295,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   removeFeed: async (id) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.removeFeed() is deprecated. Use trpc.calendar.google.deleteFeed.useMutation(), trpc.calendar.outlook.deleteFeed.useMutation(), or trpc.calendar.caldav.deleteFeed.useMutation() instead."
+    );
+
     try {
       const feed = get().feeds.find((f) => f.id === id);
       if (!feed) return;
@@ -326,6 +336,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   toggleFeed: async (id) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.toggleFeed() is deprecated. Use trpc.calendar.google.updateFeed.useMutation(), trpc.calendar.outlook.updateFeed.useMutation(), or trpc.calendar.caldav.updateFeed.useMutation() instead."
+    );
+
     const feed = get().feeds.find((f) => f.id === id);
     if (!feed) return;
 
@@ -367,6 +382,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   updateFeed: async (id, updates) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.updateFeed() is deprecated. Use trpc.calendar.google.updateFeed.useMutation(), trpc.calendar.outlook.updateFeed.useMutation(), or trpc.calendar.caldav.updateFeed.useMutation() instead."
+    );
+
     try {
       const feed = get().feeds.find((f) => f.id === id);
       if (!feed) return;
@@ -409,6 +429,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   // Event management
   addEvent: async (event: Omit<CalendarEvent, "id">) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.addEvent() is deprecated. Use trpc.calendar.googleEvents.create.useMutation(), trpc.calendar.outlookEvents.create.useMutation(), or trpc.calendar.caldavEvents.create.useMutation() instead."
+    );
+
     const newEvent = { ...event, id: uuidv4() };
 
     try {
@@ -495,6 +520,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   updateEvent: async (id, updates, mode) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.updateEvent() is deprecated. Use trpc.calendar.googleEvents.update.useMutation(), trpc.calendar.outlookEvents.update.useMutation(), or trpc.calendar.caldavEvents.update.useMutation() instead."
+    );
+
     try {
       const event = get().events.find((e) => e.id === id);
       if (!event) return;
@@ -572,6 +602,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
   },
 
   removeEvent: async (id, mode) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.removeEvent() is deprecated. Use trpc.calendar.googleEvents.delete.useMutation(), trpc.calendar.outlookEvents.delete.useMutation(), or trpc.calendar.caldavEvents.delete.useMutation() instead."
+    );
+
     try {
       const event = get().events.find((e) => e.id === id);
       if (!event) return;
@@ -636,6 +671,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   // Feed synchronization
   syncFeed: async (id) => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.syncFeed() is deprecated. Use trpc.calendar.google.syncCalendars.useMutation(), trpc.calendar.outlook.syncCalendars.useMutation(), or trpc.calendar.caldav.syncCalendars.useMutation() instead."
+    );
+
     const feed = get().feeds.find((f) => f.id === id);
     if (!feed) return;
 
@@ -702,6 +742,11 @@ export const useCalendarStore = create<CalendarStore>()((set, get) => ({
 
   // Data loading
   loadFromDatabase: async () => {
+    // DEPRECATED: Use tRPC hooks instead
+    console.warn(
+      "⚠️ DEPRECATED: useCalendarStore.loadFromDatabase() is deprecated. Use trpc.feeds.getAll.useQuery() and trpc.events.getAll.useQuery() instead."
+    );
+
     try {
       set({ isLoading: true, error: undefined });
 

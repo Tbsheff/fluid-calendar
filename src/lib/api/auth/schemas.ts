@@ -1,10 +1,17 @@
 import { z } from "zod";
 
 /**
- * Input schema for checking admin status
+ * Input schema for checking admin status (legacy)
  */
 export const CheckAdminInputSchema = z.object({
   // No input needed - uses session token
+});
+
+/**
+ * Input schema for checking admin status via tRPC
+ */
+export const CheckAdminStatusInputSchema = z.object({
+  userId: z.string().uuid("Valid user ID is required"),
 });
 
 /**
@@ -50,8 +57,19 @@ export const PasswordResetInputSchema = z.object({
     ),
 });
 
+/**
+ * Auth error class
+ */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
 // Export types
 export type CheckAdminInput = z.infer<typeof CheckAdminInputSchema>;
+export type CheckAdminStatusInput = z.infer<typeof CheckAdminStatusInputSchema>;
 export type PublicSignupStatusInput = z.infer<
   typeof PublicSignupStatusInputSchema
 >;

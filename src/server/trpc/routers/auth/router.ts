@@ -1,14 +1,20 @@
 import { TRPCError } from "@trpc/server";
 
 import {
+  checkAdminStatus,
   getPublicSignupStatus,
   registerUser,
   requestPasswordReset,
   resetPassword,
 } from "@/lib/api/auth";
 
-import { createTRPCRouter, publicProcedure } from "../../trpc";
 import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "../../trpc";
+import {
+  CheckAdminStatusInputSchema,
   PasswordResetInputSchema,
   PasswordResetRequestInputSchema,
   PublicSignupStatusInputSchema,
@@ -21,6 +27,25 @@ import {
  * due to special session handling requirements
  */
 export const authRouter = createTRPCRouter({
+  /**
+   * Check if the current user is an admin
+   */
+  checkAdminStatus: protectedProcedure
+    .input(CheckAdminStatusInputSchema)
+    .query(async ({ ctx }) => {
+      try {
+        return await checkAdminStatus({ userId: ctx.userId });
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to check admin status",
+        });
+      }
+    }),
+
   /**
    * Check if public signup is enabled
    */

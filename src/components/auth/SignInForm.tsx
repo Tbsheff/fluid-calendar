@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useEffect } from "react";
 
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -21,8 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { isPublicSignupEnabledClient } from "@/lib/auth/client-public-signup";
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 const LOG_SOURCE = "SignInForm";
 
@@ -32,25 +31,14 @@ export function SignInForm() {
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
-  const [publicSignupEnabled, setPublicSignupEnabled] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const checkPublicSignup = async () => {
-      try {
-        const isEnabled = await isPublicSignupEnabledClient();
-        setPublicSignupEnabled(isEnabled);
-      } catch (error) {
-        logger.error(
-          "Failed to check if public signup is enabled",
-          { error: error instanceof Error ? error.message : "Unknown error" },
-          LOG_SOURCE
-        );
-      }
-    };
+  // Use tRPC to check if public signup is enabled
+  const { data: publicSignupEnabled = false } =
+    trpc.auth.getPublicSignupStatus.useQuery({});
 
-    checkPublicSignup();
-  }, []);
+  // Use tRPC mutation for user registration
+  const registerMutation = trpc.auth.register.useMutation();
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,39 +84,38 @@ export function SignInForm() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          name,
-        }),
+      await registerMutation.mutateAsync({
+        email,
+        password,
+        name: name || undefined, // Convert empty string to undefined
       });
 
-      const data = await response.json();
+      toast.success("Account created successfully", {
+        description: "You can now sign in with your credentials.",
+      });
+      setActiveTab("signin");
 
-      if (!response.ok) {
-        toast.error("Registration failed", {
-          description: data.error || "Please try again later.",
-        });
-      } else {
-        toast.success("Account created successfully", {
-          description: "You can now sign in with your credentials.",
-        });
-        setActiveTab("signin");
-      }
+      // Clear form fields
+      setName("");
+      setEmail("");
+      setPassword("");
     } catch (error) {
       logger.error(
         "Error signing up",
         { error: error instanceof Error ? error.message : "Unknown error" },
         LOG_SOURCE
       );
-      toast.error("An error occurred", {
-        description: "Please try again later.",
-      });
+
+      // Handle tRPC errors
+      if (error && typeof error === "object" && "message" in error) {
+        toast.error("Registration failed", {
+          description: error.message as string,
+        });
+      } else {
+        toast.error("An error occurred", {
+          description: "Please try again later.",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -229,8 +216,14 @@ export function SignInForm() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create Account"}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading || registerMutation.isPending}
+                >
+                  {isLoading || registerMutation.isPending
+                    ? "Creating account..."
+                    : "Create Account"}
                 </Button>
               </form>
             </TabsContent>

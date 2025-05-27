@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRef } from "react";
 
 import { Download, Loader2, Upload } from "lucide-react";
@@ -17,27 +17,32 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
+import { trpc } from "@/lib/trpc/client";
+
 export function ImportExportSettings() {
   const [includeCompleted, setIncludeCompleted] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      const response = await fetch(
-        `/api/export/tasks?includeCompleted=${includeCompleted}`
-      );
+  // tRPC mutations and queries
+  const [shouldExport, setShouldExport] = useState(false);
 
-      if (!response.ok) {
-        throw new Error("Failed to export tasks");
-      }
+  const {
+    data: exportData,
+    isLoading: isExporting,
+    error: exportError,
+  } = trpc.importExport.exportTasks.useQuery(
+    { includeCompleted },
+    {
+      enabled: shouldExport,
+    }
+  );
 
-      const data = await response.json();
-
+  // Handle export data when it's available
+  useEffect(() => {
+    if (exportData && shouldExport) {
       // Create a blob from the JSON data
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         type: "application/json",
       });
 
@@ -56,12 +61,41 @@ export function ImportExportSettings() {
       URL.revokeObjectURL(url);
 
       toast.success("Tasks exported successfully");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("Failed to export tasks");
-    } finally {
-      setIsExporting(false);
+      setShouldExport(false);
     }
+  }, [exportData, shouldExport]);
+
+  // Handle export error
+  useEffect(() => {
+    if (exportError && shouldExport) {
+      console.error("Export error:", exportError);
+      toast.error("Failed to export tasks");
+      setShouldExport(false);
+    }
+  }, [exportError, shouldExport]);
+
+  const importTasksMutation = trpc.importExport.importTasks.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Import successful: ${result.imported} tasks imported`);
+      setIsImporting(false);
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    onError: (error) => {
+      console.error("Import processing error:", error);
+      toast.error(`Import failed: ${error.message || "Unknown error"}`);
+      setIsImporting(false);
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+  });
+
+  const handleExport = async () => {
+    setShouldExport(true);
   };
 
   const handleImportClick = () => {
@@ -85,22 +119,9 @@ export function ImportExportSettings() {
           const content = event.target?.result as string;
           const data = JSON.parse(content);
 
-          // Send the data to the import API
-          const response = await fetch("/api/import/tasks", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(data),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || "Import failed");
-          }
-
-          const result = await response.json();
-          toast.success(`Import successful: ${result.imported} tasks imported`);
+          // Send the data to the import API via tRPC
+          // The data should already be in the correct format from export
+          importTasksMutation.mutate(data);
         } catch (error) {
           console.error("Import processing error:", error);
           toast.error(
@@ -108,7 +129,6 @@ export function ImportExportSettings() {
               error instanceof Error ? error.message : "Unknown error"
             }`
           );
-        } finally {
           setIsImporting(false);
           // Reset the file input
           if (fileInputRef.current) {
@@ -168,11 +188,11 @@ export function ImportExportSettings() {
 
               <Button
                 onClick={handleImportClick}
-                disabled={isImporting}
+                disabled={isImporting || importTasksMutation.isPending}
                 variant="outline"
                 className="flex items-center gap-2"
               >
-                {isImporting ? (
+                {isImporting || importTasksMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Upload className="h-4 w-4" />

@@ -1,6 +1,3 @@
-import { getToken } from "next-auth/jwt";
-import { NextRequest } from "next/server";
-
 import { hash } from "bcrypt";
 import crypto from "crypto";
 
@@ -10,8 +7,9 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 import {
-  type CheckAdminInput,
-  CheckAdminInputSchema,
+  AuthError,
+  type CheckAdminStatusInput,
+  CheckAdminStatusInputSchema,
   type PasswordResetInput,
   PasswordResetInputSchema,
   type PasswordResetRequestInput,
@@ -28,35 +26,42 @@ const LOG_SOURCE = "AuthAPI";
  * Check if the current user is an admin
  */
 export async function checkAdminStatus(
-  request: NextRequest,
-  input: CheckAdminInput
+  input: CheckAdminStatusInput
 ): Promise<{ isAdmin: boolean }> {
-  CheckAdminInputSchema.parse(input);
+  const { userId } = CheckAdminStatusInputSchema.parse(input);
 
-  logger.info("Checking admin status", {}, LOG_SOURCE);
+  logger.info("Checking admin status", { userId }, LOG_SOURCE);
 
   try {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
+    // Get user from database to check role
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
 
-    if (!token) {
-      logger.info("No token found when checking admin status", {}, LOG_SOURCE);
+    if (!user) {
+      logger.info(
+        "User not found when checking admin status",
+        { userId },
+        LOG_SOURCE
+      );
       return { isAdmin: false };
     }
 
-    const isAdmin = token.role === "admin";
-    logger.info("Checked if user is admin", { isAdmin }, LOG_SOURCE);
+    const isAdmin = user.role === "admin";
+    logger.info("Checked if user is admin", { isAdmin, userId }, LOG_SOURCE);
 
     return { isAdmin };
   } catch (error) {
     logger.error(
-      "Error checking if user is admin",
-      { error: error instanceof Error ? error.message : "Unknown error" },
+      "Failed to check admin status",
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+        userId,
+      },
       LOG_SOURCE
     );
-    throw new Error("Failed to check admin status");
+    throw new AuthError("Failed to check admin status");
   }
 }
 

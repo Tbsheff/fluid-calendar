@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Calendar,
@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { format } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { useProjectStore } from "@/store/project";
 import { useSettingsStore } from "@/store/settings";
@@ -76,20 +77,16 @@ interface TaskList {
 
 export function TaskSyncSettings() {
   const { accounts } = useSettingsStore();
-  const { projects } = useProjectStore();
+  const { projects, fetchProjects: fetchProjectsFromStore } = useProjectStore();
+  const utils = trpc.useUtils();
 
   // State
-  const [providers, setProviders] = useState<TaskProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<TaskProvider | null>(
     null
   );
   const [taskLists, setTaskLists] = useState<TaskList[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("task-lists");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [newProviderName, setNewProviderName] = useState("");
   const [selectedAccount, setSelectedAccount] = useState("");
 
@@ -97,201 +94,224 @@ export function TaskSyncSettings() {
   const compatibleAccounts = accounts.filter(
     (acc) => acc.provider === "OUTLOOK" || acc.provider === "GOOGLE"
   );
-  // Fetch providers
-  const fetchProviders = useCallback(async () => {
-    setIsLoadingProviders(true);
-    setError(null);
 
-    try {
-      const response = await fetch("/api/task-sync/providers");
-      if (!response.ok) {
-        throw new Error("Failed to fetch task providers");
-      }
+  // tRPC query for fetching providers
+  const {
+    data: providers,
+    isLoading: isLoadingProviders,
+    error: providersError,
+    refetch: refetchProviders,
+  } = trpc.taskSync.providers.getAll.useQuery({
+    includeAccount: true,
+    includeMappings: false,
+  });
 
-      // API now returns full provider objects directly
-      const providers = await response.json();
-
-      // Enrich providers with account emails
-      const enrichedProviders = await Promise.all(
-        providers.map(async (provider: TaskProvider) => {
-          if (provider.accountId) {
-            // Find account in local state first
-            const account = accounts.find((a) => a.id === provider.accountId);
-            if (account) {
-              return { ...provider, accountEmail: account.email };
-            }
-
-            // If not found in local state, try to fetch from API
-            try {
-              const accountResponse = await fetch(
-                `/api/accounts/${provider.accountId}`
-              );
-              if (accountResponse.ok) {
-                const accountData = await accountResponse.json();
-                return { ...provider, accountEmail: accountData.email };
-              }
-            } catch (e) {
-              // Ignore errors from account fetch, we'll just show "Unknown" email
-              console.error("Failed to fetch account for provider", e);
-            }
-          }
-
-          // If we couldn't get an email, show unknown
-          return { ...provider, accountEmail: "Unknown Account" };
-        })
-      );
-
-      setProviders(enrichedProviders);
-
-      // Auto-select the first provider if available
-      if (enrichedProviders.length > 0 && !selectedProvider) {
-        setSelectedProvider(enrichedProviders[0]);
-      }
-    } catch (error) {
-      setError("Failed to load task providers");
-      logger.error(
-        "Failed to fetch task providers",
-        { error: error instanceof Error ? error.message : "Unknown error" },
-        LOG_SOURCE
-      );
-    } finally {
-      setIsLoadingProviders(false);
-    }
-  }, [accounts, selectedProvider]);
-  // Load providers and projects when component mounts
+  // Handle provider data changes
   useEffect(() => {
-    fetchProviders();
-    const { fetchProjects } = useProjectStore.getState();
-    fetchProjects();
-  }, [fetchProviders]);
+    if (providers) {
+      // Enrich providers with account emails - This might be better done on the backend
+      const enrichedData = providers?.map((provider) => {
+        const account = accounts.find((acc) => acc.id === provider.accountId);
+        return {
+          ...provider,
+          accountEmail: account?.email || "Unknown Account",
+        };
+      }) as TaskProvider[] | undefined; // Type assertion
 
-  // Fetch mappings for a provider
-  const fetchMappings = useCallback(async (providerId: string) => {
-    try {
-      const response = await fetch(
-        `/api/task-sync/mappings?providerId=${providerId}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch task list mappings");
+      if (enrichedData && enrichedData.length > 0 && !selectedProvider) {
+        setSelectedProvider(enrichedData[0]);
       }
-
-      // We just fetch but don't need to store the mappings since they're not used
-      await response.json();
-    } catch (error) {
-      logger.error(
-        "Failed to fetch task list mappings",
-        {
-          error: error instanceof Error ? error.message : "Unknown error",
-          providerId,
-        },
-        LOG_SOURCE
-      );
-    }
-  }, []);
-
-  // Fetch task lists for a provider
-  const fetchTaskLists = useCallback(async (providerId: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(
-        `/api/task-sync/providers/${providerId}/lists`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch task lists");
+      // If selectedProvider is no longer in the list, reset it
+      if (
+        selectedProvider &&
+        !enrichedData?.find((p) => p.id === selectedProvider.id)
+      ) {
+        setSelectedProvider(
+          enrichedData && enrichedData.length > 0 ? enrichedData[0] : null
+        );
       }
-
-      const data = await response.json();
-      setTaskLists(data);
-    } catch (error) {
-      setError("Failed to load task lists");
-      logger.error(
-        "Failed to fetch task lists",
-        {
-          error: error instanceof Error ? error.message : "Unknown error",
-          providerId,
-        },
-        LOG_SOURCE
-      );
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [providers, accounts, selectedProvider]);
 
-  // Load task lists for the selected provider
+  // Handle provider error
   useEffect(() => {
-    if (selectedProvider) {
-      fetchTaskLists(selectedProvider.id);
-      fetchMappings(selectedProvider.id);
+    if (providersError) {
+      logger.error(
+        "Failed to fetch task providers via tRPC",
+        { error: providersError.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to load task providers.");
     }
-  }, [selectedProvider, fetchTaskLists, fetchMappings]);
+  }, [providersError]);
+
+  // tRPC mutation for creating a provider
+  const createProviderMutation = trpc.taskSync.providers.create.useMutation({
+    onSuccess: () => {
+      utils.taskSync.providers.getAll.invalidate(); // Refetch providers list
+      toast.success("Task provider created successfully!");
+      setIsDialogOpen(false);
+      setNewProviderName("");
+      setSelectedAccount("");
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to create task provider via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error(`Failed to create task provider: ${error.message}`);
+    },
+  });
+
+  // tRPC mutation for deleting a provider
+  const deleteProviderMutation = trpc.taskSync.providers.delete.useMutation({
+    onSuccess: () => {
+      utils.taskSync.providers.getAll.invalidate();
+      toast.success("Task provider deleted successfully");
+      setSelectedProvider(null);
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to delete task provider via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to delete task provider");
+    },
+  });
+
+  // tRPC mutation for creating a mapping
+  const createMappingMutation = trpc.taskSync.mappings.create.useMutation({
+    onSuccess: () => {
+      utils.taskSync.providers.getLists.invalidate();
+      utils.taskSync.mappings.getAll.invalidate();
+      toast.success("Task list mapped successfully");
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to create task list mapping via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to create task list mapping");
+    },
+  });
+
+  // tRPC mutation for deleting a mapping
+  const deleteMappingMutation = trpc.taskSync.mappings.delete.useMutation({
+    onSuccess: () => {
+      utils.taskSync.providers.getLists.invalidate();
+      utils.taskSync.mappings.getAll.invalidate();
+      toast.success("Task list mapping removed successfully");
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to remove task list mapping via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to remove task list mapping");
+    },
+  });
+
+  // tRPC mutation for triggering sync
+  const triggerSyncMutation = trpc.taskSync.sync.trigger.useMutation({
+    onSuccess: () => {
+      toast.success("Sync job scheduled");
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to trigger sync via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to trigger sync");
+    },
+  });
+
+  // tRPC mutation for creating a project
+  const createProjectMutation = trpc.projects.create.useMutation({
+    onSuccess: () => {
+      fetchProjectsFromStore(); // Refresh projects in store
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to create project via tRPC",
+        { error: error.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to create new project");
+    },
+  });
+
+  // Fetch providers and projects when component mounts
+  useEffect(() => {
+    // providers are fetched by useQuery automatically
+    fetchProjectsFromStore();
+  }, [fetchProjectsFromStore]);
+
+  // tRPC query for fetching task lists
+  const {
+    data: taskListsData,
+    isLoading: isLoadingTaskLists,
+    error: taskListsError,
+  } = trpc.taskSync.providers.getLists.useQuery(
+    {
+      providerId: selectedProvider?.id || "",
+    },
+    {
+      enabled: !!selectedProvider?.id,
+    }
+  );
+
+  // Update task lists when data changes
+  useEffect(() => {
+    if (taskListsData?.lists) {
+      // Transform the API response to match TaskList interface
+      const transformedLists: TaskList[] = taskListsData.lists.map((list) => ({
+        id: list.id,
+        name: list.name,
+        isMapped: false, // Will be updated when mappings are loaded
+        isDefaultFolder: false, // This would need to come from the API if needed
+      }));
+      setTaskLists(transformedLists);
+    }
+  }, [taskListsData]);
+
+  // Handle task lists error
+  useEffect(() => {
+    if (taskListsError) {
+      logger.error(
+        "Failed to fetch task lists via tRPC",
+        { error: taskListsError.message },
+        LOG_SOURCE
+      );
+    }
+  }, [taskListsError]);
 
   // Create a new provider
   const createProvider = async () => {
     if (!newProviderName || !selectedAccount) {
-      // Show error toast for missing fields
-      toast.error("Please enter a name and select an account");
+      toast.error("Provider name and account are required.");
       return;
     }
 
-    setIsCreating(true);
-
-    try {
-      // Find account email for UI display
-      const account = accounts.find((acc) => acc.id === selectedAccount);
-      const accountEmail = account?.email || "Unknown Account";
-
-      const response = await fetch("/api/task-sync/providers", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: newProviderName,
-          type: "OUTLOOK",
-          settings: {},
-          accountId: selectedAccount,
-        }),
-      });
-
-      if (!response.ok) {
-        const responseData = await response.json().catch(() => null);
-        console.error("Failed to create provider:", responseData);
-        throw new Error("Failed to create task provider");
-      }
-
-      // Get the new provider data from response
-      const newProvider = await response.json();
-
-      // Add the account email to the provider object for display
-      const enrichedProvider = {
-        ...newProvider,
-        accountEmail,
-      };
-
-      // Add the new provider to the list and select it
-      setProviders([...providers, enrichedProvider]);
-      setSelectedProvider(enrichedProvider);
-      setNewProviderName("");
-      setSelectedAccount("");
-
-      // Show success toast
-      toast.success("Task provider created successfully");
-
-      // Close the dialog
-      setIsDialogOpen(false);
-    } catch (error) {
-      setError("Failed to create task provider");
-      logger.error(
-        "Failed to create task provider",
-        { error: error instanceof Error ? error.message : "Unknown error" },
-        LOG_SOURCE
-      );
-      toast.error("Failed to create task provider");
-    } finally {
-      setIsCreating(false);
+    const selectedAccountDetails = accounts.find(
+      (acc) => acc.id === selectedAccount
+    );
+    if (!selectedAccountDetails) {
+      toast.error("Selected account not found.");
+      return;
     }
+
+    createProviderMutation.mutate({
+      name: newProviderName,
+      type: selectedAccountDetails.provider as "OUTLOOK" | "GOOGLE", // Ensure type compatibility
+      accountId: selectedAccount,
+      syncEnabled: true, // Default to enabled
+      // settings: {}, // Add any default settings if needed
+    });
   };
 
   // Delete a provider
@@ -304,34 +324,7 @@ export function TaskSyncSettings() {
       return;
     }
 
-    try {
-      setIsLoading(true);
-      const response = await fetch(`/api/task-sync/providers/${providerId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete task provider");
-      }
-
-      toast.success("Task provider deleted successfully");
-
-      // Refresh providers
-      await fetchProviders();
-      setSelectedProvider(null);
-    } catch (error) {
-      toast.error("Failed to delete task provider");
-      logger.error(
-        "Failed to delete task provider",
-        {
-          error: error instanceof Error ? error.message : "Unknown error",
-          providerId,
-        },
-        LOG_SOURCE
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    deleteProviderMutation.mutate({ providerId });
   };
 
   // Create a mapping for a task list
@@ -342,63 +335,37 @@ export function TaskSyncSettings() {
   ) => {
     if (!selectedProvider) return;
 
-    try {
-      setIsLoading(true);
-      const list = taskLists.find((l) => l.id === externalListId);
+    const list = taskLists.find((l) => l.id === externalListId);
 
-      // If creating a new project
-      if (createNewProject && list) {
-        const projectResponse = await fetch("/api/projects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: list.name,
-            description: `Project created for syncing with ${selectedProvider.name} task list`,
-          }),
-        });
-
-        if (!projectResponse.ok) {
-          throw new Error("Failed to create new project");
+    // If creating a new project
+    if (createNewProject && list) {
+      createProjectMutation.mutate(
+        {
+          name: list.name,
+          description: `Project created for syncing with ${selectedProvider.name} task list`,
+        },
+        {
+          onSuccess: (newProject) => {
+            // Create mapping with the new project
+            createMappingMutation.mutate({
+              providerId: selectedProvider.id,
+              externalListId,
+              externalListName: list.name,
+              projectId: newProject.id,
+              direction: "bidirectional",
+            });
+          },
         }
-
-        const newProject = await projectResponse.json();
-        projectId = newProject.id;
-
-        // Update projects in store
-        const { fetchProjects } = useProjectStore.getState();
-        await fetchProjects();
-      }
-
-      const response = await fetch("/api/task-sync/mappings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          providerId: selectedProvider.id,
-          externalListId,
-          externalListName: list?.name || "Unknown List",
-          projectId,
-          direction: "bidirectional", // Always set to bidirectional
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create task list mapping");
-      }
-
-      toast.success("Task list mapped successfully");
-
-      // Refresh lists and mappings
-      await fetchTaskLists(selectedProvider.id);
-      await fetchMappings(selectedProvider.id);
-    } catch (error) {
-      toast.error("Failed to create task list mapping");
-      logger.error(
-        "Failed to create task list mapping",
-        { error: error instanceof Error ? error.message : "Unknown error" },
-        LOG_SOURCE
       );
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Create mapping with existing project
+      createMappingMutation.mutate({
+        providerId: selectedProvider.id,
+        externalListId,
+        externalListName: list?.name || "Unknown List",
+        projectId,
+        direction: "bidirectional",
+      });
     }
   };
 
@@ -408,230 +375,194 @@ export function TaskSyncSettings() {
       return;
     }
 
-    if (!selectedProvider) return;
-
-    try {
-      setIsLoading(true);
-      const response = await fetch(`/api/task-sync/mappings/${mappingId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete task list mapping");
-      }
-
-      toast.success("Task list mapping removed successfully");
-
-      // Refresh lists and mappings
-      await fetchTaskLists(selectedProvider.id);
-      await fetchMappings(selectedProvider.id);
-    } catch (error) {
-      toast.error("Failed to remove task list mapping");
-      logger.error(
-        "Failed to remove task list mapping",
-        {
-          error: error instanceof Error ? error.message : "Unknown error",
-          mappingId,
-        },
-        LOG_SOURCE
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    deleteMappingMutation.mutate({ mappingId });
   };
 
   // Trigger sync for the selected provider
   const triggerSync = async (providerId: string) => {
-    setIsLoading(true);
-
-    try {
-      const provider = providers.find((p) => p.id === providerId);
-      const direction = provider?.settings?.direction || "bidirectional";
-
-      const response = await fetch(`/api/task-sync/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          providerId,
-          direction,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Failed to trigger provider sync:", errorData);
-        toast.error("Failed to trigger sync");
-        return;
-      }
-
-      const data = await response.json();
-      toast.success("Sync job scheduled");
-      console.log("Sync job:", data);
-    } catch (error) {
-      console.error("Error triggering sync:", error);
-      toast.error("Failed to trigger sync");
-    } finally {
-      setIsLoading(false);
-    }
+    triggerSyncMutation.mutate({
+      providerId,
+      forceSync: false,
+    });
   };
 
   // Find unused accounts (accounts that are not already task providers)
   const unusedAccounts = compatibleAccounts.filter(
     (account) =>
-      !providers.some(
-        (provider) =>
-          provider.accountEmail === account.email &&
+      !providers?.some((provider) => {
+        const enrichedProvider = {
+          ...provider,
+          accountEmail:
+            accounts.find((acc) => acc.id === provider.accountId)?.email ||
+            "Unknown Account",
+        };
+        return (
+          enrichedProvider.accountEmail === account.email &&
           provider.type === account.provider
-      )
+        );
+      })
   );
 
   // Trigger sync for a specific mapping
   const triggerMappingSync = async (mappingId: string) => {
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`/api/task-sync/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          mappingId,
-          direction: "bidirectional", // Default to bidirectional sync
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Failed to trigger mapping sync:", errorData);
-        toast.error("Failed to trigger sync");
-        return;
-      }
-
-      const data = await response.json();
-      toast.success("Sync job scheduled");
-      console.log("Sync job:", data);
-    } catch (error) {
-      console.error("Error triggering sync:", error);
-      toast.error("Failed to trigger sync");
-    } finally {
-      setIsLoading(false);
-    }
+    triggerSyncMutation.mutate({
+      mappingId,
+      forceSync: false,
+    });
   };
 
   // Render the provider selection and creation UI
   const renderProviderSelection = () => {
+    if (isLoadingProviders) {
+      return (
+        <SettingsSection
+          title="Task Sync Providers"
+          description="Loading task sync providers..."
+        >
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-2">Loading providers...</p>
+          </div>
+        </SettingsSection>
+      );
+    }
+
+    if (providersError) {
+      return (
+        <SettingsSection
+          title="Task Sync Providers"
+          description="Error loading task sync providers"
+        >
+          <Alert variant="destructive">
+            <AlertTitle>Error Loading Providers</AlertTitle>
+            <AlertDescription>
+              There was an issue fetching your task sync providers. Please try
+              again later.
+              <br />
+              <Button
+                variant="link"
+                className="p-0 h-auto"
+                onClick={() => refetchProviders()}
+              >
+                Try again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </SettingsSection>
+      );
+    }
+
+    const displayableProviders =
+      (providers?.map((provider) => {
+        const account = accounts.find((acc) => acc.id === provider.accountId);
+        return {
+          ...provider,
+          accountEmail: account?.email || "Unknown Account",
+        };
+      }) as TaskProvider[]) || [];
+
     return (
       <SettingRow
         label="Task Provider"
         description="Select or create a task provider"
       >
         <div className="space-y-4">
-          {isLoadingProviders ? (
-            <div className="flex items-center">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">
-                Loading providers...
-              </span>
-            </div>
+          {displayableProviders.length > 0 ? (
+            <Select
+              value={selectedProvider?.id || ""}
+              onValueChange={(value) => {
+                const provider = displayableProviders.find(
+                  (p) => p.id === value
+                );
+                setSelectedProvider(provider || null);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {displayableProviders.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.accountEmail})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
-            <>
-              {providers.length > 0 ? (
-                <Select
-                  value={selectedProvider?.id || ""}
-                  onValueChange={(value) => {
-                    const provider = providers.find((p) => p.id === value);
-                    setSelectedProvider(provider || null);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers.map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name} ({provider.accountEmail})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Alert>
-                  <AlertTitle>No Task Providers</AlertTitle>
-                  <AlertDescription>
-                    You need to create a task provider to sync tasks from
-                    external services.
-                  </AlertDescription>
-                </Alert>
-              )}
+            <Alert>
+              <AlertTitle>No Task Providers</AlertTitle>
+              <AlertDescription>
+                You need to create a task provider to sync tasks from external
+                services.
+              </AlertDescription>
+            </Alert>
+          )}
 
-              {unusedAccounts.length > 0 && (
-                <div className="pt-2">
-                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Plus className="mr-2 h-4 w-4" /> Add Provider
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add Task Provider</DialogTitle>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="name">Provider Name</Label>
-                          <Input
-                            id="name"
-                            value={newProviderName}
-                            onChange={(e) => setNewProviderName(e.target.value)}
-                            placeholder="e.g., Work Outlook Tasks"
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="account">Account</Label>
-                          <Select
-                            value={selectedAccount}
-                            onValueChange={setSelectedAccount}
-                          >
-                            <SelectTrigger id="account">
-                              <SelectValue placeholder="Select an account" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {unusedAccounts.map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.email} ({account.provider})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={createProvider}
-                          disabled={
-                            isCreating || !newProviderName || !selectedAccount
-                          }
-                        >
-                          {isCreating && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          )}
-                          Add Provider
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
-            </>
+          {unusedAccounts.length > 0 && (
+            <div className="pt-2">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Plus className="mr-2 h-4 w-4" /> Add Provider
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Task Provider</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Provider Name</Label>
+                      <Input
+                        id="name"
+                        value={newProviderName}
+                        onChange={(e) => setNewProviderName(e.target.value)}
+                        placeholder="e.g., Work Outlook Tasks"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="account">Account</Label>
+                      <Select
+                        value={selectedAccount}
+                        onValueChange={setSelectedAccount}
+                      >
+                        <SelectTrigger id="account">
+                          <SelectValue placeholder="Select an account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unusedAccounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.email} ({account.provider})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={createProvider}
+                      disabled={
+                        createProviderMutation.isPending ||
+                        !newProviderName ||
+                        !selectedAccount
+                      }
+                    >
+                      {createProviderMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Create Provider
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </div>
       </SettingRow>
@@ -701,7 +632,7 @@ export function TaskSyncSettings() {
               variant="destructive"
               size="sm"
               onClick={() => deleteProvider(selectedProvider.id)}
-              disabled={isLoading}
+              disabled={isLoadingTaskLists}
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete Provider
@@ -711,7 +642,7 @@ export function TaskSyncSettings() {
               variant="outline"
               size="sm"
               onClick={() => triggerSync(selectedProvider.id)}
-              disabled={isLoading}
+              disabled={isLoadingTaskLists}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Sync Now
@@ -738,13 +669,15 @@ export function TaskSyncSettings() {
         description="Map external task lists to FluidCalendar projects"
       >
         <div className="space-y-4">
-          {error && (
+          {taskListsError && (
             <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {taskListsError.message || "Failed to load task lists"}
+              </AlertDescription>
             </Alert>
           )}
 
-          {isLoading ? (
+          {isLoadingTaskLists ? (
             <div className="flex items-center">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               <span className="text-sm text-muted-foreground">
@@ -789,7 +722,7 @@ export function TaskSyncSettings() {
                                 list.mappingId &&
                                 triggerMappingSync(list.mappingId)
                               }
-                              disabled={isLoading || !list.mappingId}
+                              disabled={isLoadingTaskLists || !list.mappingId}
                             >
                               <RefreshCw className="mr-1 h-4 w-4" />
                               Sync
@@ -802,7 +735,7 @@ export function TaskSyncSettings() {
                               onClick={() =>
                                 list.mappingId && deleteMapping(list.mappingId)
                               }
-                              disabled={isLoading}
+                              disabled={isLoadingTaskLists}
                             >
                               Remove Mapping
                             </Button>
@@ -816,7 +749,8 @@ export function TaskSyncSettings() {
                           <div className="flex flex-col space-y-2">
                             <Select
                               disabled={
-                                isLoading || projectOptions.length === 0
+                                isLoadingTaskLists ||
+                                projectOptions.length === 0
                               }
                               onValueChange={(projectId) =>
                                 createMapping(list.id, projectId)
@@ -846,7 +780,7 @@ export function TaskSyncSettings() {
                               variant="outline"
                               size="sm"
                               onClick={() => createMapping(list.id, "", true)}
-                              disabled={isLoading}
+                              disabled={isLoadingTaskLists}
                             >
                               <Plus className="mr-1 h-4 w-4" />
                               Create New Project

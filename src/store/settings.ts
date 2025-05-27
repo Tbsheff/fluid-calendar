@@ -123,6 +123,11 @@ export const useSettingsStore = create<SettingsStore>()(
       initialized: false,
       updateUserSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateUserSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'user' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.user, ...settings };
 
@@ -147,6 +152,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateCalendarSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateCalendarSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'calendar' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.calendar, ...settings };
 
@@ -181,6 +191,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateNotificationSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateNotificationSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'notification' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.notifications, ...settings };
 
@@ -215,6 +230,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateIntegrationSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateIntegrationSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'integration' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.integrations, ...settings };
 
@@ -246,6 +266,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateDataSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateDataSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'data' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.data, ...settings };
 
@@ -270,6 +295,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateAutoScheduleSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateAutoScheduleSettings() is deprecated. Use trpc.settings.update.useMutation() with type 'autoSchedule' instead."
+          );
+
           // Update local state
           const newSettings = { ...state.autoSchedule, ...settings };
 
@@ -294,6 +324,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }),
       updateSystemSettings: (settings) =>
         set((state) => {
+          // DEPRECATED: Use tRPC hooks instead
+          console.warn(
+            "⚠️ DEPRECATED: useSettingsStore.updateSystemSettings() is deprecated. Use trpc.systemSettings.update.useMutation() instead."
+          );
+
           // Update local state
           const newSettings = { ...state.system, ...settings };
 
@@ -321,6 +356,11 @@ export const useSettingsStore = create<SettingsStore>()(
           accounts,
         })),
       removeAccount: async (accountId) => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useSettingsStore.removeAccount() is deprecated. Use trpc.accounts.delete.useMutation() instead."
+        );
+
         try {
           await fetch("/api/accounts", {
             method: "DELETE",
@@ -345,6 +385,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }
       },
       refreshAccounts: async () => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useSettingsStore.refreshAccounts() is deprecated. Use trpc.accounts.getAll.useQuery() instead."
+        );
+
         try {
           const response = await fetch("/api/accounts");
           const accounts = await response.json();
@@ -359,6 +404,11 @@ export const useSettingsStore = create<SettingsStore>()(
         }
       },
       initializeSettings: async () => {
+        // DEPRECATED: Use tRPC hooks instead
+        console.warn(
+          "⚠️ DEPRECATED: useSettingsStore.initializeSettings() is deprecated. Use individual trpc.settings.get.useQuery() calls for each settings type instead."
+        );
+
         try {
           // Load all settings from the database
           const [

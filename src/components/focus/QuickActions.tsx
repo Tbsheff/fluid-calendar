@@ -3,38 +3,93 @@
 import { useState } from "react";
 
 import { HiClock, HiPencil, HiTrash } from "react-icons/hi";
+import { toast } from "sonner";
 
 import { TaskModal } from "@/components/tasks/TaskModal";
 import { Button } from "@/components/ui/button";
 
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { useFocusModeStore } from "@/store/focusMode";
-import { useTaskStore } from "@/store/task";
 
-import { NewTask } from "@/types/task";
+import { NewTask, Tag } from "@/types/task";
 
 export function QuickActions() {
   const { completeCurrentTask, postponeTask, getCurrentTask } =
     useFocusModeStore();
-  const { updateTask, deleteTask, fetchTasks, tags, createTag } =
-    useTaskStore();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const currentTask = getCurrentTask();
+
+  // Use tRPC queries and mutations
+  const { data: tags = [] } = trpc.tags.getAll.useQuery({});
+
+  const updateTaskMutation = trpc.tasks.update.useMutation({
+    onSuccess: () => {
+      toast.success("Task updated successfully");
+      setIsEditModalOpen(false);
+    },
+    onError: (error) => {
+      toast.error("Failed to update task", {
+        description: error.message,
+      });
+    },
+  });
+
+  const deleteTaskMutation = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Task deleted successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete task", {
+        description: error.message,
+      });
+    },
+  });
+
+  const createTagMutation = trpc.tags.create.useMutation({
+    onSuccess: () => {
+      toast.success("Tag created successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to create tag", {
+        description: error.message,
+      });
+    },
+  });
 
   const handleEditTask = async (taskData: NewTask) => {
     if (!currentTask) return;
 
     try {
-      await updateTask(currentTask.id, taskData);
-      await fetchTasks();
-      setIsEditModalOpen(false);
+      await updateTaskMutation.mutateAsync({
+        taskId: currentTask.id,
+        data: {
+          title: taskData.title,
+          description: taskData.description,
+          dueDate: taskData.dueDate?.toISOString(),
+          duration: taskData.duration,
+          priority: taskData.priority,
+          status: taskData.status as unknown as
+            | "COMPLETED"
+            | "TODO"
+            | "IN_PROGRESS"
+            | "CANCELLED",
+          projectId: taskData.projectId,
+          tagIds: taskData.tagIds,
+          isAutoScheduled: taskData.isAutoScheduled,
+          startDate: taskData.startDate?.toISOString(),
+          isRecurring: taskData.isRecurring,
+          recurrenceRule: taskData.recurrenceRule,
+        },
+      });
     } catch (error) {
       logger.error("Failed to update task in focus mode", {
         error: error instanceof Error ? error.message : String(error),
         taskId: currentTask.id,
       });
+      // Error is already handled in the mutation onError callback
     }
   };
 
@@ -43,14 +98,32 @@ export function QuickActions() {
 
     if (confirm("Are you sure you want to delete this task?")) {
       try {
-        await deleteTask(currentTask.id);
-        await fetchTasks();
+        await deleteTaskMutation.mutateAsync({ taskId: currentTask.id });
       } catch (error) {
         logger.error("Failed to delete task in focus mode", {
           error: error instanceof Error ? error.message : String(error),
           taskId: currentTask.id,
         });
+        // Error is already handled in the mutation onError callback
       }
+    }
+  };
+
+  const handleCreateTag = async (name: string, color?: string): Promise<Tag> => {
+    try {
+      const result = await createTagMutation.mutateAsync({
+        name,
+        color: color || "",
+      });
+      return result as Tag;
+    } catch (error) {
+      logger.error("Failed to create tag in focus mode", {
+        error: error instanceof Error ? error.message : String(error),
+        name,
+        color: color || null,
+      });
+      // Error is already handled in the mutation onError callback
+      throw error;
     }
   };
 
@@ -90,11 +163,11 @@ export function QuickActions() {
           variant="outline"
           onClick={handleDeleteTask}
           className="justify-start text-destructive hover:text-destructive"
-          disabled={!currentTask}
+          disabled={!currentTask || deleteTaskMutation.isPending}
         >
           <span className="flex items-center">
             <HiTrash className="mr-2 h-4 w-4" />
-            Delete Task
+            {deleteTaskMutation.isPending ? "Deleting..." : "Delete Task"}
           </span>
         </Button>
 
@@ -149,8 +222,8 @@ export function QuickActions() {
           onClose={() => setIsEditModalOpen(false)}
           onSave={handleEditTask}
           task={currentTask}
-          tags={tags}
-          onCreateTag={(name, color) => createTag({ name, color: color || "" })}
+          tags={tags.map(tag => ({ ...tag, color: tag.color || undefined }))}
+          onCreateTag={handleCreateTag}
         />
       )}
     </div>

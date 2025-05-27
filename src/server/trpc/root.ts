@@ -1,5 +1,6 @@
 import { accountsRouter } from "./routers/accounts/router";
 import { authRouter } from "./routers/auth/router";
+import { calendarRouter } from "./routers/calendar/router";
 import { eventsRouter } from "./routers/events/router";
 import { feedsRouter } from "./routers/feeds/router";
 import { importExportRouter } from "./routers/import-export/router";
@@ -22,6 +23,7 @@ import { createTRPCRouter } from "./trpc";
 export const appRouter = createTRPCRouter({
   accounts: accountsRouter,
   auth: authRouter,
+  calendar: calendarRouter,
   tags: tagsRouter,
   projects: projectsRouter,
   tasks: tasksRouter,

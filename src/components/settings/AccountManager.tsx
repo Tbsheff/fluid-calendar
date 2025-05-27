@@ -13,53 +13,28 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { useSettingsStore } from "@/store/settings";
 
 import { AvailableCalendars } from "./AvailableCalendars";
 import { CalDAVAccountForm } from "./CalDAVAccountForm";
 
-const LOG_SOURCE = "AccountManager";
-
-interface IntegrationStatus {
-  google: { configured: boolean };
-  outlook: { configured: boolean };
-}
-
 export function AccountManager() {
   const { accounts, refreshAccounts, removeAccount } = useSettingsStore();
   const [showAvailableFor, setShowAvailableFor] = useState<string | null>(null);
   const [showCalDAVForm, setShowCalDAVForm] = useState(false);
-  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>(
-    {
-      google: { configured: false },
-      outlook: { configured: false },
-    }
-  );
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Use tRPC query for integration status
+  const {
+    data: integrationStatus,
+    isLoading,
+    error,
+  } = trpc.integrationStatus.get.useQuery();
 
   useEffect(() => {
     refreshAccounts();
   }, [refreshAccounts]);
-
-  useEffect(() => {
-    // Fetch integration status
-    fetch("/api/integration-status")
-      .then((res) => res.json())
-      .then((data) => {
-        setIntegrationStatus(data);
-        setIsLoading(false);
-      })
-      .catch((error) => {
-        logger.error(
-          "Failed to fetch integration status",
-          { error: error instanceof Error ? error.message : "Unknown error" },
-          LOG_SOURCE
-        );
-        setIsLoading(false);
-      });
-  }, []);
 
   const handleConnect = (provider: "GOOGLE" | "OUTLOOK") => {
     if (provider === "GOOGLE") {
@@ -88,6 +63,18 @@ export function AccountManager() {
     refreshAccounts();
   };
 
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Failed to load integration status: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -98,7 +85,7 @@ export function AccountManager() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!integrationStatus.google.configured && (
+          {integrationStatus && !integrationStatus.google.configured && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Missing Google Credentials</AlertTitle>
@@ -109,7 +96,7 @@ export function AccountManager() {
             </Alert>
           )}
 
-          {!integrationStatus.outlook.configured && (
+          {integrationStatus && !integrationStatus.outlook.configured && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Missing Outlook Credentials</AlertTitle>
@@ -123,13 +110,13 @@ export function AccountManager() {
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => handleConnect("GOOGLE")}
-              disabled={!integrationStatus.google.configured || isLoading}
+              disabled={!integrationStatus?.google.configured || isLoading}
             >
               Connect Google Calendar
             </Button>
             <Button
               onClick={() => handleConnect("OUTLOOK")}
-              disabled={!integrationStatus.outlook.configured || isLoading}
+              disabled={!integrationStatus?.outlook.configured || isLoading}
             >
               Connect Outlook Calendar
             </Button>

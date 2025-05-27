@@ -1,39 +1,152 @@
 import { useCallback, useState } from "react";
 
 import { BsArrowRepeat, BsGoogle, BsMicrosoft, BsTrash } from "react-icons/bs";
+import { toast } from "sonner";
 
 import { Checkbox } from "@/components/ui/checkbox";
 
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useCalendarStore } from "@/store/calendar";
 import { useViewStore } from "@/store/calendar";
 
 import { MiniCalendar } from "./MiniCalendar";
 
 export function FeedManager() {
   const [syncingFeeds, setSyncingFeeds] = useState<Set<string>>(new Set());
-  const { feeds, removeFeed, toggleFeed, syncFeed } = useCalendarStore();
   const { date: currentDate, setDate } = useViewStore();
+
+  // Use tRPC to fetch feeds
+  const { data: feeds = [], refetch: refetchFeeds } =
+    trpc.feeds.getAll.useQuery({});
+
+  // Use tRPC mutations for feed operations
+  const deleteFeedMutation = trpc.feeds.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Calendar removed successfully");
+      refetchFeeds();
+    },
+    onError: (error) => {
+      toast.error("Failed to remove calendar", {
+        description: error.message,
+      });
+    },
+  });
+
+  const updateFeedMutation = trpc.feeds.update.useMutation({
+    onSuccess: () => {
+      refetchFeeds();
+    },
+    onError: (error) => {
+      toast.error("Failed to update calendar", {
+        description: error.message,
+      });
+    },
+  });
+
+  // Sync mutations for different calendar types
+  const syncGoogleMutation = trpc.calendar.google.syncCalendars.useMutation({
+    onSuccess: () => {
+      toast.success("Google Calendar synced successfully");
+      refetchFeeds();
+    },
+    onError: (error) => {
+      toast.error("Failed to sync Google Calendar", {
+        description: error.message,
+      });
+    },
+  });
+
+  const syncOutlookMutation = trpc.calendar.outlook.syncCalendars.useMutation({
+    onSuccess: () => {
+      toast.success("Outlook Calendar synced successfully");
+      refetchFeeds();
+    },
+    onError: (error) => {
+      toast.error("Failed to sync Outlook Calendar", {
+        description: error.message,
+      });
+    },
+  });
+
+  const syncCalDAVMutation = trpc.calendar.caldav.syncCalendars.useMutation({
+    onSuccess: () => {
+      toast.success("CalDAV Calendar synced successfully");
+      refetchFeeds();
+    },
+    onError: (error) => {
+      toast.error("Failed to sync CalDAV Calendar", {
+        description: error.message,
+      });
+    },
+  });
 
   const handleRemoveFeed = useCallback(
     async (feedId: string) => {
       try {
-        await removeFeed(feedId);
+        await deleteFeedMutation.mutateAsync({ feedId });
       } catch (error) {
+        // Error is already handled in the mutation onError callback
         console.error("Failed to remove feed:", error);
       }
     },
-    [removeFeed]
+    [deleteFeedMutation]
+  );
+
+  const handleToggleFeed = useCallback(
+    async (feedId: string) => {
+      const feed = feeds.find((f) => f.id === feedId);
+      if (!feed) return;
+
+      try {
+        await updateFeedMutation.mutateAsync({
+          feedId,
+          data: { enabled: !feed.enabled },
+        });
+      } catch (error) {
+        // Error is already handled in the mutation onError callback
+        console.error("Failed to toggle feed:", error);
+      }
+    },
+    [feeds, updateFeedMutation]
   );
 
   const handleSyncFeed = useCallback(
     async (feedId: string) => {
       if (syncingFeeds.has(feedId)) return;
 
+      const feed = feeds.find((f) => f.id === feedId);
+      if (!feed || !feed.accountId) {
+        toast.error("Cannot sync calendar: missing account information");
+        return;
+      }
+
       try {
         setSyncingFeeds((prev) => new Set(prev).add(feedId));
-        await syncFeed(feedId);
+
+        // Use the appropriate sync mutation based on feed type
+        switch (feed.type) {
+          case "GOOGLE":
+            await syncGoogleMutation.mutateAsync({
+              accountId: feed.accountId,
+              feedIds: [feedId],
+            });
+            break;
+          case "OUTLOOK":
+            await syncOutlookMutation.mutateAsync({
+              accountId: feed.accountId,
+              feedIds: [feedId],
+            });
+            break;
+          case "CALDAV":
+            await syncCalDAVMutation.mutateAsync({
+              accountId: feed.accountId,
+              feedIds: [feedId],
+            });
+            break;
+          default:
+            throw new Error(`Unsupported calendar type: ${feed.type}`);
+        }
       } finally {
         setSyncingFeeds((prev) => {
           const next = new Set(prev);
@@ -42,7 +155,13 @@ export function FeedManager() {
         });
       }
     },
-    [syncFeed, syncingFeeds]
+    [
+      feeds,
+      syncingFeeds,
+      syncGoogleMutation,
+      syncOutlookMutation,
+      syncCalDAVMutation,
+    ]
   );
 
   return (
@@ -61,7 +180,7 @@ export function FeedManager() {
               <div className="flex items-center gap-3">
                 <Checkbox
                   checked={feed.enabled}
-                  onCheckedChange={() => toggleFeed(feed.id)}
+                  onCheckedChange={() => handleToggleFeed(feed.id)}
                   className="h-4 w-4"
                 />
                 <div

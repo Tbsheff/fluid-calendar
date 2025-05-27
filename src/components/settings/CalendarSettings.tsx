@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 
+import {
+  CalendarSettings as PrismaCalendarSettings,
+  UserSettings as PrismaUserSettings,
+} from "@prisma/client";
+import { toast } from "sonner";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,20 +17,83 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { trpc } from "@/lib/trpc/client";
+
 import { useCalendarStore } from "@/store/calendar";
-import { useSettingsStore } from "@/store/settings";
 
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 export function CalendarSettings() {
-  const { calendar, updateCalendarSettings, user, updateUserSettings } =
-    useSettingsStore();
   const { feeds, loadFromDatabase } = useCalendarStore();
+
+  // Use tRPC to fetch and update calendar and user settings
+  const { data: calendarSettingsData, isLoading: isLoadingCalendar } =
+    trpc.settings.get.useQuery({
+      type: "calendar",
+    });
+
+  const { data: userSettingsData, isLoading: isLoadingUser } =
+    trpc.settings.get.useQuery({
+      type: "user",
+    });
+
+  // Cast to the correct types since we know what we're fetching
+  const calendarSettings = calendarSettingsData as
+    | PrismaCalendarSettings
+    | undefined;
+  const userSettings = userSettingsData as PrismaUserSettings | undefined;
+
+  const updateCalendarSettingsMutation = trpc.settings.update.useMutation();
+  const updateUserSettingsMutation = trpc.settings.update.useMutation();
 
   // Load feeds when component mounts
   useEffect(() => {
     loadFromDatabase();
   }, [loadFromDatabase]);
+
+  const handleUpdateCalendarSettings = async (
+    updates: Partial<{
+      defaultCalendarId: string;
+      workingHoursEnabled: boolean;
+      workingHoursStart: string;
+      workingHoursEnd: string;
+      workingHoursDays: number[];
+    }>
+  ) => {
+    try {
+      await updateCalendarSettingsMutation.mutateAsync({
+        type: "calendar",
+        data: updates,
+      });
+
+      toast.success("Calendar settings updated successfully");
+    } catch (error) {
+      toast.error("Failed to update calendar settings", {
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  };
+
+  const handleUpdateUserSettings = async (
+    updates: Partial<{
+      weekStartDay: "monday" | "sunday";
+    }>
+  ) => {
+    try {
+      await updateUserSettingsMutation.mutateAsync({
+        type: "user",
+        data: updates,
+      });
+
+      toast.success("User settings updated successfully");
+    } catch (error) {
+      toast.error("Failed to update user settings", {
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      });
+    }
+  };
 
   const workingDays = [
     { value: 0, label: "Sunday" },
@@ -36,6 +105,43 @@ export function CalendarSettings() {
     { value: 6, label: "Saturday" },
   ];
 
+  // Show loading state while fetching settings
+  if (isLoadingCalendar || isLoadingUser) {
+    return (
+      <SettingsSection
+        title="Calendar Settings"
+        description="Configure your calendar display and event defaults."
+      >
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">
+            Loading calendar settings...
+          </div>
+        </div>
+      </SettingsSection>
+    );
+  }
+
+  // Handle case where settings are not loaded
+  if (!calendarSettings || !userSettings) {
+    return (
+      <SettingsSection
+        title="Calendar Settings"
+        description="Configure your calendar display and event defaults."
+      >
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">
+            Failed to load calendar settings
+          </div>
+        </div>
+      </SettingsSection>
+    );
+  }
+
+  // Parse working hours days from JSON string
+  const workingHoursDays = JSON.parse(
+    calendarSettings.workingHoursDays
+  ) as number[];
+
   return (
     <SettingsSection
       title="Calendar Settings"
@@ -46,12 +152,13 @@ export function CalendarSettings() {
         description="Choose which calendar new events are added to by default"
       >
         <Select
-          value={calendar.defaultCalendarId || "none"}
+          value={calendarSettings.defaultCalendarId || "none"}
           onValueChange={(value) =>
-            updateCalendarSettings({
+            handleUpdateCalendarSettings({
               defaultCalendarId: value === "none" ? "" : value,
             })
           }
+          disabled={updateCalendarSettingsMutation.isPending}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select a default calendar" />
@@ -74,12 +181,13 @@ export function CalendarSettings() {
         description="Set which day of the week your calendar should start on"
       >
         <Select
-          value={user.weekStartDay}
+          value={userSettings.weekStartDay}
           onValueChange={(value) =>
-            updateUserSettings({
+            handleUpdateUserSettings({
               weekStartDay: value as "monday" | "sunday",
             })
           }
+          disabled={updateUserSettingsMutation.isPending}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select start day" />
@@ -99,15 +207,13 @@ export function CalendarSettings() {
           <div className="flex items-center space-x-2">
             <Checkbox
               id="show-working-hours"
-              checked={calendar.workingHours.enabled}
+              checked={calendarSettings.workingHoursEnabled}
               onCheckedChange={(checked) =>
-                updateCalendarSettings({
-                  workingHours: {
-                    ...calendar.workingHours,
-                    enabled: checked as boolean,
-                  },
+                handleUpdateCalendarSettings({
+                  workingHoursEnabled: checked as boolean,
                 })
               }
+              disabled={updateCalendarSettingsMutation.isPending}
             />
             <Label htmlFor="show-working-hours">Show working hours</Label>
           </div>
@@ -117,30 +223,26 @@ export function CalendarSettings() {
               <Label>Start Time</Label>
               <Input
                 type="time"
-                value={calendar.workingHours.start}
+                value={calendarSettings.workingHoursStart}
                 onChange={(e) =>
-                  updateCalendarSettings({
-                    workingHours: {
-                      ...calendar.workingHours,
-                      start: e.target.value,
-                    },
+                  handleUpdateCalendarSettings({
+                    workingHoursStart: e.target.value,
                   })
                 }
+                disabled={updateCalendarSettingsMutation.isPending}
               />
             </div>
             <div className="flex-1">
               <Label>End Time</Label>
               <Input
                 type="time"
-                value={calendar.workingHours.end}
+                value={calendarSettings.workingHoursEnd}
                 onChange={(e) =>
-                  updateCalendarSettings({
-                    workingHours: {
-                      ...calendar.workingHours,
-                      end: e.target.value,
-                    },
+                  handleUpdateCalendarSettings({
+                    workingHoursEnd: e.target.value,
                   })
                 }
+                disabled={updateCalendarSettingsMutation.isPending}
               />
             </div>
           </div>
@@ -152,20 +254,16 @@ export function CalendarSettings() {
                 <div key={day.value} className="flex items-center space-x-2">
                   <Checkbox
                     id={`day-${day.value}`}
-                    checked={calendar.workingHours.days.includes(day.value)}
+                    checked={workingHoursDays.includes(day.value)}
                     onCheckedChange={(checked) => {
                       const days = checked
-                        ? [...calendar.workingHours.days, day.value]
-                        : calendar.workingHours.days.filter(
-                            (d) => d !== day.value
-                          );
-                      updateCalendarSettings({
-                        workingHours: {
-                          ...calendar.workingHours,
-                          days,
-                        },
+                        ? [...workingHoursDays, day.value]
+                        : workingHoursDays.filter((d) => d !== day.value);
+                      handleUpdateCalendarSettings({
+                        workingHoursDays: days,
                       });
                     }}
+                    disabled={updateCalendarSettingsMutation.isPending}
                   />
                   <Label htmlFor={`day-${day.value}`} className="text-sm">
                     {day.label}

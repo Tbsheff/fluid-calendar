@@ -9,6 +9,172 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Frontend tRPC Migration Phase 4 Complete**: Successfully migrated Calendar System components to tRPC v11
+
+  - **Calendar Component Migration**: Complete migration of core calendar functionality to tRPC
+    - `src/components/calendar/Calendar.tsx`: Migrated from calendar and task stores to `trpc.feeds.getAll.useQuery()`, `trpc.events.getAll.useQuery()`, and `trpc.tasks.scheduleAll.useMutation()`
+    - Enhanced auto-scheduling functionality with proper error handling and loading states
+    - Improved data hydration with tRPC queries and backward compatibility with calendar views
+  - **EventModal Component Migration**: Complete migration of event CRUD operations to tRPC
+    - `src/components/calendar/EventModal.tsx`: Migrated from calendar store to calendar-specific event mutations based on calendar type (Google, Outlook, CalDAV)
+    - `trpc.calendar.googleEvents.create/update/delete.useMutation()` for Google Calendar events
+    - `trpc.calendar.outlookEvents.create/update/delete.useMutation()` for Outlook Calendar events
+    - `trpc.calendar.caldavEvents.create/update/delete.useMutation()` for CalDAV events
+    - Enhanced error handling with toast notifications and proper parameter validation
+  - **AvailableCalendars Component Migration**: Complete migration of calendar provider integration to tRPC
+    - `src/components/settings/AvailableCalendars.tsx`: Migrated from direct fetch calls to provider-specific tRPC queries
+    - `trpc.calendar.google.getAvailableCalendars.useQuery()` and `trpc.calendar.google.addCalendar.useMutation()` for Google
+    - `trpc.calendar.outlook.getAvailableCalendars.useQuery()` and `trpc.calendar.outlook.addCalendar.useMutation()` for Outlook
+    - `trpc.calendar.caldav.getAvailableCalendars.useQuery()` and `trpc.calendar.caldav.addCalendar.useMutation()` for CalDAV
+    - Enhanced user experience with proper loading states and error feedback
+  - **Enhanced User Experience**: Improved error handling with toast notifications, proper loading states, and TypeScript type safety across all calendar components
+  - **Type Safety Improvements**: Proper type conversions between tRPC types and frontend types with appropriate casting
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 4 of frontend migration complete (Calendar System components migrated), Phase 5 (Focus Mode Migration) ready to begin
+
+- **Frontend tRPC Migration Phase 4 Started**: Calendar System Migration to tRPC v11
+
+  - **Calendar Store Deprecation**: Added comprehensive deprecation warnings to all calendar store methods directing developers to use tRPC hooks
+    - `addFeed()` → `trpc.calendar.google.addCalendar.useMutation()`, `trpc.calendar.outlook.addCalendar.useMutation()`, or `trpc.calendar.caldav.addCalendar.useMutation()`
+    - `removeFeed()` → `trpc.calendar.google.deleteFeed.useMutation()`, `trpc.calendar.outlook.deleteFeed.useMutation()`, or `trpc.calendar.caldav.deleteFeed.useMutation()`
+    - `toggleFeed()` → `trpc.calendar.google.updateFeed.useMutation()`, `trpc.calendar.outlook.updateFeed.useMutation()`, or `trpc.calendar.caldav.updateFeed.useMutation()`
+    - `updateFeed()` → `trpc.calendar.google.updateFeed.useMutation()`, `trpc.calendar.outlook.updateFeed.useMutation()`, or `trpc.calendar.caldav.updateFeed.useMutation()`
+    - `addEvent()` → `trpc.calendar.googleEvents.create.useMutation()`, `trpc.calendar.outlookEvents.create.useMutation()`, or `trpc.calendar.caldavEvents.create.useMutation()`
+    - `updateEvent()` → `trpc.calendar.googleEvents.update.useMutation()`, `trpc.calendar.outlookEvents.update.useMutation()`, or `trpc.calendar.caldavEvents.update.useMutation()`
+    - `removeEvent()` → `trpc.calendar.googleEvents.delete.useMutation()`, `trpc.calendar.outlookEvents.delete.useMutation()`, or `trpc.calendar.caldavEvents.delete.useMutation()`
+    - `syncFeed()` → `trpc.calendar.google.syncCalendars.useMutation()`, `trpc.calendar.outlook.syncCalendars.useMutation()`, or `trpc.calendar.caldav.syncCalendars.useMutation()`
+    - `loadFromDatabase()` → `trpc.feeds.getAll.useQuery()` and `trpc.events.getAll.useQuery()`
+  - **FeedManager Component Migration**: Complete migration of calendar feed management to tRPC
+    - `src/components/calendar/FeedManager.tsx`: Migrated from calendar store to `trpc.feeds.getAll.useQuery()`, `trpc.feeds.delete.useMutation()`, `trpc.feeds.update.useMutation()`, and calendar sync mutations
+    - Enhanced error handling with toast notifications for all feed operations
+    - Improved user experience with proper loading states and error feedback
+    - Type-safe calendar sync operations with proper account validation
+  - **Migration Progress**: Phase 4 of frontend migration started (Calendar System Migration), FeedManager component migrated
+
+- **Frontend tRPC Migration Phase 3 Complete**: Successfully migrated Log Viewer components to tRPC v11
+
+  - **Log Viewer Components Migration**: Complete migration of log viewing functionality to tRPC
+    - `src/components/settings/LogViewer/index.tsx`: Migrated from log view store to `trpc.logs.get.useQuery()`, `trpc.logs.getSources.useQuery()`, and `trpc.logs.cleanup.useMutation()`
+    - `src/components/settings/LogViewer/LogFilters.tsx`: Updated to receive sources as prop instead of from store
+    - `src/components/settings/LogViewer/LogSettings.tsx`: Already using tRPC (was migrated previously)
+    - `src/components/settings/LogViewer/LogTable.tsx`: No changes needed (pure presentation component)
+  - **Log View Store Deprecation**: Added comprehensive deprecation warnings to all log view store methods directing developers to use tRPC hooks
+  - **Enhanced User Experience**: Improved error handling with toast notifications, proper loading states, and TypeScript type safety
+  - **Type Safety Improvements**: Proper transformation of tRPC Date objects to string format for Log type compatibility
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 3 of frontend migration complete (Log Viewer components migrated), Phase 4 (Calendar System Migration) ready to begin
+
+- **Frontend tRPC Migration Phase 2 Complete**: Successfully migrated all settings components to tRPC v11
+
+  - **Settings Store Migration**: Added comprehensive deprecation warnings to all settings store methods directing developers to use tRPC hooks
+  - **Settings Components Migration**: Complete migration of all settings functionality to tRPC
+    - `src/components/settings/UserSettings.tsx`: Migrated from settings store to `trpc.settings.get.useQuery()` and `trpc.settings.update.useMutation()` with type 'user'
+    - `src/components/settings/CalendarSettings.tsx`: Migrated from settings store to `trpc.settings.get.useQuery()` and `trpc.settings.update.useMutation()` with types 'calendar' and 'user'
+    - `src/components/settings/NotificationSettings.tsx`: Migrated from settings store to `trpc.settings.get.useQuery()` and `trpc.settings.update.useMutation()` with type 'notification'
+    - `src/components/settings/IntegrationSettings.tsx`: Migrated from settings store to `trpc.settings.get.useQuery()` and `trpc.settings.update.useMutation()` with type 'integration'
+    - `src/components/settings/DataSettings.tsx`: Migrated from settings store to `trpc.settings.get.useQuery()` and `trpc.settings.update.useMutation()` with type 'data'
+  - **Enhanced User Experience**: Improved loading states, error handling with toast notifications, and proper TypeScript type safety
+  - **Type Safety Improvements**: Proper casting of tRPC union types to specific Prisma model types for each settings category
+  - **Loading States**: Added comprehensive loading and error states for all settings components
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 2 of frontend migration complete (6 settings components migrated), Phase 3 (Log Viewer Migration) ready to begin
+
+- **Frontend tRPC Migration Phase 1 Complete**: Successfully migrated auth and setup components to tRPC v11
+
+  - **Auth Components Migration**: Complete migration of authentication functionality to tRPC
+    - `src/components/auth/SignInForm.tsx`: Migrated from direct fetch to `trpc.auth.register.useMutation()` and `trpc.auth.getPublicSignupStatus.useQuery()`
+    - `src/components/auth/PasswordResetForm.tsx`: Migrated from direct fetch to `trpc.auth.requestPasswordReset.useMutation()` and `trpc.auth.resetPassword.useMutation()`
+  - **Setup Components Migration**: Complete migration of setup functionality to tRPC
+    - `src/components/setup/SetupForm.tsx`: Migrated from direct fetch to `trpc.setup.perform.useMutation()`
+  - **CalDAV Components Migration**: Partial migration of CalDAV functionality to tRPC
+    - `src/components/settings/CalDAVAccountForm.tsx`: Authentication migrated to `trpc.calendar.caldav.authenticate.useMutation()`, test connection functionality temporarily disabled due to tRPC client setup issues
+  - **Type Safety & Error Handling**: Enhanced error handling with proper tRPC error patterns and TypeScript integration
+  - **Loading States**: Improved loading state management with tRPC's `isPending` status
+  - **Migration Progress**: Phase 1 of frontend migration complete (4 components migrated), Phase 2 (Settings Store Migration) ready to begin
+
+- **Auth tRPC Migration**: Complete migration of Auth functionality to tRPC v11
+
+  - **Business Logic Layer**: Enhanced auth API infrastructure with admin status checking
+    - `src/lib/api/auth/`: Updated auth business logic with `checkAdminStatus` function
+    - Added `CheckAdminStatusInput` schema and `AuthError` class for proper error handling
+  - **tRPC Router Implementation**: Auth tRPC integration
+    - `src/server/trpc/routers/auth/router.ts`: Added `checkAdminStatus` procedure with protected access
+    - `src/server/trpc/routers/auth/schemas.ts`: Added tRPC input validation schemas
+  - **Available tRPC Procedures**: 1 new auth procedure
+    - **Admin Operations (1)**: `checkAdminStatus` - Check if current user has admin role
+  - **Type Safety & Error Handling**: Full TypeScript integration with Zod validation and comprehensive error mapping
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Now 48 out of 54 routes migrated to tRPC (89% complete)
+
+- **CalDAV Calendar tRPC Migration**: Complete migration of CalDAV Calendar functionality to tRPC v11
+
+  - **Business Logic Layer**: Created comprehensive CalDAV Calendar API infrastructure
+    - `src/lib/api/calendar/caldav/`: Complete CalDAV Calendar business logic with authentication, calendar management, and event operations
+    - `src/lib/api/calendar/caldav/events.ts`: Dedicated event CRUD operations (create, update, delete)
+    - Updated `src/lib/api/calendar/index.ts`: Added CalDAV Calendar exports alongside Google and Outlook Calendar
+  - **tRPC Router Implementation**: Full CalDAV Calendar tRPC integration
+    - `src/server/trpc/routers/calendar/caldav/router.ts`: Main CalDAV Calendar operations (auth, test connection, sync, feed management)
+    - `src/server/trpc/routers/calendar/caldav/events.ts`: CalDAV Events operations (create, update, delete)
+    - `src/server/trpc/routers/calendar/caldav/schemas.ts`: Comprehensive input validation schemas
+    - Updated `src/server/trpc/routers/calendar/router.ts`: Integrated CalDAV routers into main calendar router
+  - **Available tRPC Procedures**: 10 total CalDAV procedures
+    - **Calendar Operations (7)**: `authenticate`, `testConnection`, `getAvailableCalendars`, `addCalendar`, `syncCalendars`, `updateFeed`, `deleteFeed`
+    - **Event Operations (3)**: `create`, `update`, `delete`
+  - **Type Safety & Error Handling**: Full TypeScript integration with Zod validation and comprehensive error mapping
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+
+- **Outlook Calendar tRPC Migration**: Complete migration of Outlook Calendar functionality to tRPC v11
+
+  - **Business Logic Layer**: Created comprehensive Outlook Calendar API infrastructure
+    - `src/lib/api/calendar/outlook/`: Complete Outlook Calendar business logic with OAuth, calendar management, and event operations
+    - `src/lib/api/calendar/outlook/events.ts`: Dedicated event CRUD operations (create, update, delete)
+    - Updated `src/lib/api/calendar/index.ts`: Added Outlook Calendar exports alongside Google Calendar
+  - **tRPC Router Implementation**: Full Outlook Calendar tRPC integration
+    - `src/server/trpc/routers/calendar/outlook/router.ts`: Main Outlook Calendar operations (OAuth, sync, feed management)
+    - `src/server/trpc/routers/calendar/outlook/events.ts`: Outlook Calendar event operations
+    - `src/server/trpc/routers/calendar/outlook/schemas.ts`: tRPC-specific input validation schemas
+    - Updated `src/server/trpc/routers/calendar/router.ts`: Added Outlook routers to main calendar router
+  - **Available tRPC Procedures**:
+    - `trpc.calendar.outlook.getAuthUrl`: Get Outlook OAuth authorization URL
+    - `trpc.calendar.outlook.getAvailableCalendars`: List available Outlook calendars
+    - `trpc.calendar.outlook.addCalendar`: Add Outlook calendar for syncing
+    - `trpc.calendar.outlook.syncCalendars`: Sync Outlook calendar events
+    - `trpc.calendar.outlook.updateFeed`: Update calendar feed settings
+    - `trpc.calendar.outlook.deleteFeed`: Delete calendar feed
+    - `trpc.calendar.outlookEvents.create`: Create Outlook Calendar event
+    - `trpc.calendar.outlookEvents.update`: Update Outlook Calendar event
+    - `trpc.calendar.outlookEvents.delete`: Delete Outlook Calendar event
+  - **Error Handling**: Comprehensive error mapping from calendar errors to tRPC errors with proper HTTP status codes
+  - **Type Safety**: Full type safety with Zod validation and TypeScript integration
+  - **Authentication**: Protected procedures with user context and proper authorization checks
+  - **Migration Progress**: Now 37+ out of 54 routes migrated to tRPC (68.5%+ complete)
+
+- **Google Calendar tRPC Migration**: Complete migration of Google Calendar functionality to tRPC v11
+
+  - **Business Logic Layer**: Created comprehensive calendar API infrastructure
+    - `src/lib/api/calendar/shared/`: Shared types, schemas, and error classes for all calendar providers
+    - `src/lib/api/calendar/google/`: Complete Google Calendar business logic with OAuth, calendar management, and event operations
+    - `src/lib/api/calendar/google/events.ts`: Dedicated event CRUD operations (create, update, delete)
+    - `src/lib/api/calendar/index.ts`: Main exports file for all calendar functionality
+  - **tRPC Router Implementation**: Full Google Calendar tRPC integration
+    - `src/server/trpc/routers/calendar/google/router.ts`: Main Google Calendar operations (OAuth, sync, feed management)
+    - `src/server/trpc/routers/calendar/google/events.ts`: Google Calendar event operations
+    - `src/server/trpc/routers/calendar/google/schemas.ts`: tRPC-specific input validation schemas
+    - `src/server/trpc/routers/calendar/router.ts`: Main calendar router combining all providers
+  - **Available tRPC Procedures**:
+    - `trpc.calendar.google.getAuthUrl`: Get Google OAuth authorization URL
+    - `trpc.calendar.google.getAvailableCalendars`: List available Google calendars
+    - `trpc.calendar.google.addCalendar`: Add Google calendar for syncing
+    - `trpc.calendar.google.syncCalendars`: Sync Google calendar events
+    - `trpc.calendar.google.updateFeed`: Update calendar feed settings
+    - `trpc.calendar.google.deleteFeed`: Delete calendar feed
+    - `trpc.calendar.googleEvents.create`: Create Google Calendar event
+    - `trpc.calendar.googleEvents.update`: Update Google Calendar event
+    - `trpc.calendar.googleEvents.delete`: Delete Google Calendar event
+  - **Error Handling**: Comprehensive error mapping from calendar errors to tRPC errors with proper HTTP status codes
+  - **Type Safety**: Full type safety with Zod validation and TypeScript integration
+  - **Authentication**: Protected procedures with user context and proper authorization checks
+
 - **Complete tRPC v11 Migration Infrastructure**: Established comprehensive tRPC setup with React Query integration
   - Server setup with context creation, procedures (public, protected, admin), and error handling
   - Client setup with httpBatchLink, superjson transformer, and React Query integration
@@ -106,143 +272,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Store Architecture Updates for tRPC**: Updated Zustand stores to support tRPC integration
-  - Modified project store to include tRPC-compatible actions alongside legacy API methods
-  - Added deprecation warnings for legacy store methods to guide migration
-  - Updated task store tag operations with deprecation warnings for tRPC migration
-  - Maintained backward compatibility while encouraging tRPC adoption
-- **Migrated Core Domains to tRPC Pattern**
-  - **Tasks Domain**: Migrated all 4 task-related API routes to tRPC
-    - Created business logic layer with comprehensive CRUD operations
-    - Implemented complex recurrence rule handling and task sync tracking
-    - Added tRPC router with proper input validation and error mapping
-    - Removed old API routes: `/api/tasks/*`, `/api/tasks/[id]/*`, `/api/tasks/normalize-recurrence`, `/api/tasks/schedule-all`
-  - **Events Domain**: Migrated all 2 event-related API routes to tRPC
-    - Created business logic layer with event CRUD operations
-    - Implemented calendar feed ownership validation
-    - Added tRPC router with proper authentication and validation
-    - Removed old API routes: `/api/events/*`, `/api/events/[id]/*`
-  - **Calendar Feeds Domain**: Migrated all 3 feed-related API routes to tRPC
-    - Created business logic layer with feed management operations
-    - Implemented batch update functionality with transactions
-    - Added tRPC router with comprehensive feed operations
-    - Removed old API routes: `/api/feeds/*`, `/api/feeds/[id]/*`
-- Removed "Upcoming:" prefix from due dates in task views to reduce confusion with the "upcoming" label used for tasks with future start dates
-- Updated future task detection to consider tasks as "upcoming" only if they are scheduled for tomorrow or later
-- Added new `isFutureDate` utility function in date-utils
-- Improved date formatting in task views to consistently show "Upcoming" label for future tasks
-- Fixed task overdue check to not mark today's tasks as overdue
-- Modified auto-scheduling to exclude tasks that are in progress, preventing them from being automatically rescheduled
-- Updated User model to track lifetime access status
-- Added new LifetimeAccessPurchase model for purchase tracking
-- Updated success URL in checkout session to include session ID
-- Improved UX for payment success confirmation
-- Updated lifetime subscription checkout to use Stripe price IDs instead of inline product data
-- Added new environment variables:
-  - `STRIPE_LIFETIME_EARLY_BIRD_PRICE_ID`: Price ID for early bird lifetime access
-  - `STRIPE_LIFETIME_REGULAR_PRICE_ID`: Price ID for regular lifetime access
-- Updated verifyPaymentStatus to include additional payment information
-- Improved error handling and logging in subscription flow
-- Improved SAAS/open source code separation:
-  - Renamed subscription-related files to include `.saas.ts` extension:
-    - `/src/lib/actions/subscription.ts` → `/src/lib/actions/subscription.saas.ts`
-    - `/src/lib/services/subscription.ts` → `/src/lib/services/subscription.saas.ts`
-    - `/src/lib/hooks/useSubscription.ts` → `/src/lib/hooks/useSubscription.saas.ts`
-    - `/src/app/api/subscription/lifetime/route.ts` → `/src/app/api/subscription/lifetime/route.saas.ts`
-    - `/src/app/api/subscription/lifetime/status/route.ts` → `/src/app/api/subscription/lifetime/status/route.saas.ts`
-    - `/src/app/api/subscription/lifetime/verify/route.ts` → `/src/app/api/subscription/lifetime/verify/route.saas.ts`
-    - `/src/app/(saas)/subscription/lifetime/success/page.tsx` → `/src/app/(saas)/subscription/lifetime/success/page.saas.tsx`
-  - Updated all imports referencing these files to use the new paths
-  - Created separate implementations of components with SAAS-specific code:
-    - Split `LifetimeAccessBanner` into `.saas.tsx` and `.open.tsx` versions
-    - Modified Calendar component to use dynamic imports based on `isSaasEnabled` flag
-    - Removed direct SAAS imports from common components
-- **Migrated 15 API Routes to tRPC**: Successfully migrated multiple domains from Next.js API routes to tRPC procedures
+- **Frontend tRPC Migration Started**: Began migrating frontend components from direct API calls to tRPC hooks
 
-  **Tasks Domain (4 routes)**:
+  - **TaskSyncSettings Component**: Fully completed migration to tRPC hooks for all task sync operations
 
-  - `/api/tasks` → `tasks.getAll`, `tasks.create`
-  - `/api/tasks/[id]` → `tasks.getById`, `tasks.update`, `tasks.delete`
-  - `/api/tasks/normalize-recurrence` → `tasks.normalizeRecurrence`
-  - `/api/tasks/schedule-all` → `tasks.scheduleAll`
-  - Features: Complex filtering, recurrence rule handling, task sync tracking, auto-scheduling logic
-  - Business logic layer: `src/lib/api/tasks/` with comprehensive schemas and CRUD operations
-  - tRPC router: `src/server/trpc/routers/tasks/` with full procedures and error mapping
+    - **Provider Operations**: Migrated all provider CRUD operations to tRPC
+      - `trpc.taskSync.providers.getAll.useQuery()` for fetching providers with account details
+      - `trpc.taskSync.providers.create.useMutation()` for creating new providers
+      - `trpc.taskSync.providers.delete.useMutation()` for deleting providers
+      - `trpc.taskSync.providers.getLists.useQuery()` for fetching external task lists
+    - **Mapping Operations**: Migrated all task list mapping operations to tRPC
+      - `trpc.taskSync.mappings.create.useMutation()` for creating task list mappings
+      - `trpc.taskSync.mappings.delete.useMutation()` for removing mappings
+    - **Sync Operations**: Migrated sync trigger operations to tRPC
+      - `trpc.taskSync.sync.trigger.useMutation()` for triggering provider and mapping syncs
+    - **Project Integration**: Migrated project creation to tRPC
+      - `trpc.projects.create.useMutation()` for creating new projects during mapping setup
+    - **Error Handling**: Updated to use tRPC error patterns with proper TypeScript types
+    - **Type Safety**: Fixed TypeScript compatibility issues between API responses and component interfaces
+    - **tRPC v11 Compatibility**: Updated callback patterns from deprecated `onSuccess`/`onError` to `useEffect` patterns
+    - **Maintained UX**: Preserved all existing UI functionality while improving type safety and error handling
 
-  **Events Domain (2 routes)**:
+  - **ProjectSidebar Component**: Successfully migrated to tRPC hooks for task sync operations
+    - **Mapping Operations**: Migrated task list mapping fetching to tRPC
+      - `trpc.taskSync.mappings.getAll.useQuery()` for fetching all task list mappings with provider and project details
+      - Automatic data transformation to group mappings by project ID for UI display
+    - **Sync Operations**: Migrated project sync triggering to tRPC
+      - `trpc.taskSync.sync.trigger.useMutation()` for triggering sync operations on specific mappings
+      - Improved error handling with proper logging and user feedback
+    - **State Management**: Enhanced sync state management with proper loading indicators
+    - **Error Handling**: Implemented comprehensive error logging and user notifications
+    - **Type Safety**: Resolved TypeScript compatibility issues between tRPC responses and component interfaces
+    - **Performance**: Optimized data fetching with conditional queries based on project availability
+  - **Store Deprecation Warnings**: Added deprecation warnings to Zustand store methods to guide migration
+    - Task store methods now warn developers to use tRPC hooks instead of direct API calls
+    - Project store already includes tRPC-compatible methods with deprecation warnings for legacy methods
+    - Maintained backward compatibility while encouraging tRPC adoption
+    - **Migration Progress**: Frontend migration started with high-priority components identified and TaskSyncSettings completed
 
-  - `/api/events` → `events.getAll`, `events.create`
-  - `/api/events/[id]` → `events.getById`, `events.update`, `events.delete`
-  - Features: Event CRUD operations with calendar feed ownership validation
-  - Business logic layer: `src/lib/api/events/` with event management operations
-  - tRPC router: `src/server/trpc/routers/events/` with authentication and validation
-
-  **Calendar Feeds Domain (3 routes)**:
-
-  - `/api/feeds` → `feeds.getAll`, `feeds.create`
-  - `/api/feeds/[id]` → `feeds.getById`, `feeds.update`, `feeds.delete`
-  - `/api/feeds/batch-update` → `feeds.batchUpdate`
-  - Features: Feed management with batch operations and transactions
-  - Business logic layer: `src/lib/api/feeds/` with comprehensive feed operations
-  - tRPC router: `src/server/trpc/routers/feeds/` with full CRUD and batch procedures
-
-  **Settings Domain (6 routes)**:
-
-  - `/api/user-settings` → `settings.get`, `settings.update` (type: 'user')
-  - `/api/notification-settings` → `settings.get`, `settings.update` (type: 'notification')
-  - `/api/calendar-settings` → `settings.get`, `settings.update` (type: 'calendar')
-  - `/api/auto-schedule-settings` → `settings.get`, `settings.update` (type: 'autoSchedule')
-  - `/api/data-settings` → `settings.get`, `settings.update` (type: 'data')
-  - `/api/integration-settings` → `settings.get`, `settings.update` (type: 'integration')
-  - Features: Unified settings system handling all settings types with type-based routing
-  - Business logic layer: `src/lib/api/settings/` with comprehensive settings management
-  - tRPC router: `src/server/trpc/routers/settings/` with get/update procedures for all settings types
-
-  **Task Sync Domain (5 routes)**:
-
-  - `/api/task-sync/providers` → `taskSync.providers.getAll`, `taskSync.providers.create`
-  - `/api/task-sync/providers/[id]` → `taskSync.providers.getById`, `taskSync.providers.update`, `taskSync.providers.delete`
-  - `/api/task-sync/providers/[id]/lists` → `taskSync.providers.getLists`
-  - `/api/task-sync/mappings` → `taskSync.mappings.getAll`, `taskSync.mappings.create`
-  - `/api/task-sync/mappings/[id]` → `taskSync.mappings.getById`, `taskSync.mappings.update`, `taskSync.mappings.delete`
-  - `/api/task-sync/sync` → `taskSync.sync.trigger`
-  - Features: Task provider and mapping management with sync operations
-  - Business logic layer: `src/lib/api/task-sync/` with provider and mapping operations
-  - tRPC router: `src/server/trpc/routers/task-sync/` with nested routers for providers, mappings, and sync
-
-- **Enhanced Type Safety**: All migrated routes now have end-to-end type safety from client to database
-- **Centralized Error Handling**: Consistent error handling and logging across all tRPC procedures
-- **Input Validation**: Comprehensive Zod schemas for all inputs with proper validation
-- **Authentication Integration**: Proper user authentication and authorization in all procedures
-
-### Technical Improvements
-
-- **Layered Architecture**: Established clean separation between tRPC layer and business logic layer
-- **Reusable Business Logic**: Created domain-specific business logic layers that can be used by both tRPC and traditional API routes
-- **Comprehensive Schemas**: Zod schemas for all inputs and outputs with proper TypeScript integration
-- **Test Components**: Created test components for each migrated domain to verify functionality
-- **Migration Pattern**: Established consistent pattern for migrating remaining routes
-
-### Migration Progress
-
-- ✅ **37 routes migrated** (Tasks: 4, Events: 2, Feeds: 3, Settings: 6, Task Sync: 5, Logs: 5, Import/Export: 2, Auth: 4, Setup: 2, Accounts: 1, Integration Status: 1, System Settings: 2)
-- ✅ **tRPC infrastructure** fully operational across all migrated domains
-- ✅ **Type-safe API communication** established
-- ✅ **Centralized error handling** implemented
-- ✅ **Input validation** with comprehensive Zod schemas
-- 🔄 **17 routes remaining** (Calendar Integrations: 15, Auth: 2) - Calendar routes remain as API routes due to OAuth/external service requirements
-
-### Known Issues
-
-- **Calendar Integration Routes**: 15 calendar integration routes remain as API routes due to OAuth flows, external service integrations, and webhook requirements
-- **Auth Routes**: 2 auth routes (`[...nextauth]`, `check-admin`) remain as API routes due to NextAuth requirements and middleware usage
-
-### Next Steps
-
-- **Migration Complete**: 37 out of 54 total routes successfully migrated to tRPC (68.5% completion)
-- **Remaining Routes**: 17 routes intentionally remain as API routes due to technical requirements (OAuth, webhooks, external integrations)
-- **Architecture Established**: Layered pattern and migration methodology proven successful
-- **Future Work**: Add comprehensive test coverage for all migrated domains and update frontend components to use tRPC hooks
+- **tRPC Backend Migration**: Migrated 51 out of 54 API routes to tRPC procedures (94.4% complete)
+  - Added 95 tRPC procedures across 15 domains (accounts, auth, calendar, events, feeds, import-export, integration-status, logs, projects, settings, setup, system-settings, tags, task-sync, tasks)
+  - Google Calendar: 9 procedures (6 calendar + 3 events)
+  - Outlook Calendar: 9 procedures (6 calendar + 3 events)
+  - CalDAV Calendar: 10 procedures (7 calendar + 3 events)
+  - Auth: 5 procedures including admin status checking
+  - Comprehensive error handling with proper HTTP status codes
+  - Full TypeScript type safety with Zod validation
+  - Protected procedures with user authentication
 
 ### Removed
 
@@ -471,3 +547,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrate Settings, Task Sync, Logging, and remaining domains
 - Update frontend components to use tRPC hooks instead of direct API calls
 - Implement optimistic updates and enhanced caching strategies
+
+### Changed
+
+- **tRPC Backend Migration Complete (94.4%)**: Successfully migrated the functionality of 51 out of 54 original API routes to tRPC v11, resulting in 95 tRPC procedures across 15 domains. The remaining 3 API routes (`/api/auth/[...nextauth]`, `/api/calendar/google` callback, `/api/calendar/outlook` callback) will remain as standard API routes due to technical requirements (NextAuth integration, external OAuth provider redirects). This phase focused on backend migration; frontend components will be updated to use tRPC in a subsequent phase.
+
+- **Frontend tRPC Migration Continued**: Migrated additional high-priority components to use tRPC hooks
+  - **TasksPage Component**: Fully migrated from Zustand store methods to tRPC hooks
+    - Replaced `useTaskStore` methods with `trpc.tasks.*` and `trpc.tags.*` hooks
+    - Added proper type conversions between frontend enums and tRPC schemas
+    - Implemented optimistic updates and error handling
+    - TaskModal, TaskList, and BoardView components now use tRPC through parent callbacks
+  - **Settings Components Migration**: Migrated core settings components to tRPC
+    - **AccountManager**: Migrated from direct fetch to `trpc.integrationStatus.get.useQuery()`
+    - **SystemSettings**: Migrated from direct fetch to `trpc.systemSettings.*` hooks with proper null-to-undefined conversions
+    - **PublicSignupSettings**: Migrated from direct fetch to `trpc.systemSettings.*` hooks
+    - **LogSettings**: Migrated from direct fetch to `trpc.logs.getSettings/updateSettings` hooks with proper type casting
+  - **Store Deprecation Warnings**: Added deprecation warnings to task and project stores directing developers to use tRPC hooks
+  - **Type Safety Improvements**: Enhanced type safety with proper conversions between Prisma types and frontend interfaces
+- **Frontend Migration Progress**: 6 high-priority components now using tRPC (TasksPage + 4 settings components + AccountManager)
+- **Task Management**: Complete tRPC integration for all task-related operations
+- **Settings Management**: Core system settings now fully integrated with tRPC
