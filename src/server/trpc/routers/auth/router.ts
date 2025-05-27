@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 
 import {
-  checkAdminStatus,
+  // checkAdminStatus, // Removed as it's no longer used by the isAdmin procedure
   getPublicSignupStatus,
   registerUser,
   requestPasswordReset,
@@ -14,7 +14,7 @@ import {
   publicProcedure,
 } from "../../trpc";
 import {
-  CheckAdminStatusInputSchema,
+  // CheckAdminStatusInputSchema, // Removed as it's no longer used
   PasswordResetInputSchema,
   PasswordResetRequestInputSchema,
   PublicSignupStatusInputSchema,
@@ -28,23 +28,14 @@ import {
  */
 export const authRouter = createTRPCRouter({
   /**
-   * Check if the current user is an admin
+   * Check if the current authenticated user is an admin.
+   * This procedure directly inspects the user's role from the session context.
    */
-  checkAdminStatus: protectedProcedure
-    .input(CheckAdminStatusInputSchema)
-    .query(async ({ ctx }) => {
-      try {
-        return await checkAdminStatus({ userId: ctx.userId });
-      } catch (error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to check admin status",
-        });
-      }
-    }),
+  isAdmin: protectedProcedure.query(({ ctx }) => {
+    // The `protectedProcedure` ensures `ctx.session` and `ctx.session.user` exist.
+    // If not, it would throw an UNAUTHORIZED error before this logic runs.
+    return { isAdmin: ctx.session.user.role === "ADMIN" };
+  }),
 
   /**
    * Check if public signup is enabled

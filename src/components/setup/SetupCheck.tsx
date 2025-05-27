@@ -17,7 +17,8 @@ export function SetupCheck() {
   const [hasChecked, setHasChecked] = useState(false);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
 
-  // We'll use tRPC utils to manually trigger the query when needed
+  // Move trpc.useUtils() to the top level of the component
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     // Skip check if already on setup page
@@ -59,8 +60,7 @@ export function SetupCheck() {
           return;
         }
 
-        // Manually trigger the tRPC query
-        const utils = trpc.useUtils();
+        // Now we can use the utils that were created at the top level
         const data = await utils.setup.checkStatus.fetch();
 
         // Update local state
@@ -91,6 +91,7 @@ export function SetupCheck() {
     router,
     hasChecked,
     lastChecked,
+    utils.setup.checkStatus, // Add utils to dependencies
   ]);
 
   // Show loading state or render nothing

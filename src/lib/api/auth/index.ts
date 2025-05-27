@@ -7,9 +7,9 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 import {
-  AuthError,
-  type CheckAdminStatusInput,
-  CheckAdminStatusInputSchema,
+  // AuthError, // Removed as no longer used
+  // type CheckAdminStatusInput, // Removed
+  // CheckAdminStatusInputSchema, // Removed
   type PasswordResetInput,
   PasswordResetInputSchema,
   type PasswordResetRequestInput,
@@ -21,49 +21,6 @@ import {
 } from "./schemas";
 
 const LOG_SOURCE = "AuthAPI";
-
-/**
- * Check if the current user is an admin
- */
-export async function checkAdminStatus(
-  input: CheckAdminStatusInput
-): Promise<{ isAdmin: boolean }> {
-  const { userId } = CheckAdminStatusInputSchema.parse(input);
-
-  logger.info("Checking admin status", { userId }, LOG_SOURCE);
-
-  try {
-    // Get user from database to check role
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true },
-    });
-
-    if (!user) {
-      logger.info(
-        "User not found when checking admin status",
-        { userId },
-        LOG_SOURCE
-      );
-      return { isAdmin: false };
-    }
-
-    const isAdmin = user.role === "admin";
-    logger.info("Checked if user is admin", { isAdmin, userId }, LOG_SOURCE);
-
-    return { isAdmin };
-  } catch (error) {
-    logger.error(
-      "Failed to check admin status",
-      {
-        error: error instanceof Error ? error.message : "Unknown error",
-        userId,
-      },
-      LOG_SOURCE
-    );
-    throw new AuthError("Failed to check admin status");
-  }
-}
 
 /**
  * Check if public signup is enabled

@@ -1,51 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { useSession } from "next-auth/react";
+import type { User } from "next-auth"; // Attempting to import User type
+
+import { trpc } from "@/lib/trpc/client";
+
+// Define UserType. If `User` from `next-auth` is correctly imported, this will be specific.
+// Otherwise, it will allow for undefined/null.
+type UserType = User | undefined | null;
 
 /**
  * Hook to check if the current user is an admin
- * @returns {boolean} Whether the current user is an admin
+ * @returns {object} Object containing isAdmin, isLoading, error, and user
  */
-export function useAdmin(): { isAdmin: boolean; isLoading: boolean } {
-  const { data: session, status } = useSession();
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export function useAdmin(): {
+  isAdmin: boolean;
+  isLoading: boolean;
+  error: unknown; // Or a more specific TRPC error type if available
+  user: UserType;
+} {
+  const { data: session, status: sessionStatus } = useSession();
+  const {
+    data: adminStatusData,
+    isLoading: isAdminQueryLoading,
+    error: isAdminError,
+  } = trpc.auth.isAdmin.useQuery(undefined, {
+    enabled: sessionStatus === "authenticated", // Only run query if authenticated
+  });
 
-  useEffect(() => {
-    if (status === "loading") {
-      return;
-    }
+  const isLoading = sessionStatus === "loading" || (sessionStatus === "authenticated" && isAdminQueryLoading);
 
-    if (status === "unauthenticated") {
-      setIsAdmin(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Check client-side based on session data
-    // This avoids importing server-side code that uses bcrypt
-    const clientSideIsAdmin = session?.user?.role === "admin";
-    setIsAdmin(clientSideIsAdmin);
-
-    // Then verify with the server
-    const verifyAdmin = async () => {
-      try {
-        const response = await fetch("/api/auth/check-admin");
-        if (response.ok) {
-          const data = await response.json();
-          setIsAdmin(data.isAdmin);
-        }
-      } catch (error) {
-        console.error("Failed to verify admin status:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    verifyAdmin();
-  }, [session, status]);
-
-  return { isAdmin, isLoading };
+  return {
+    isAdmin: adminStatusData?.isAdmin || false,
+    isLoading,
+    error: isAdminError,
+    user: session?.user as UserType, // Cast to UserType to satisfy the return type
+  };
 }

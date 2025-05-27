@@ -25,11 +25,13 @@ interface PerformanceMetrics {
 export class SchedulingService {
   private calendarService: CalendarServiceImpl;
   private settings: AutoScheduleSettings | null;
+  private userTimeZone: string;
   private metrics: PerformanceMetrics[] = [];
 
-  constructor(settings: AutoScheduleSettings) {
+  constructor(settings: AutoScheduleSettings, userTimeZone: string = "UTC") {
     this.calendarService = new CalendarServiceImpl();
     this.settings = settings;
+    this.userTimeZone = userTimeZone;
   }
 
   private startMetric(
@@ -92,7 +94,7 @@ export class SchedulingService {
       throw new Error("AutoScheduleSettings must be provided to SchedulingService");
     }
 
-    const manager = new TimeSlotManagerImpl(this.settings, this.calendarService);
+    const manager = new TimeSlotManagerImpl(this.settings, this.calendarService, this.userTimeZone);
 
     this.endMetric("getTimeSlotManager", startTime);
     return manager;

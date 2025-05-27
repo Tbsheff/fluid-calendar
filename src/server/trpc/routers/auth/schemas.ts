@@ -1,13 +1,6 @@
 import { z } from "zod";
 
 /**
- * Input schema for checking admin status via tRPC
- */
-export const CheckAdminInputSchema = z.object({
-  // No input needed - uses session context
-});
-
-/**
  * Input schema for checking public signup status via tRPC
  */
 export const PublicSignupStatusInputSchema = z.object({
@@ -50,15 +43,7 @@ export const PasswordResetInputSchema = z.object({
     ),
 });
 
-/**
- * tRPC input schema for checking admin status
- */
-export const CheckAdminStatusInputSchema = z.object({
-  // No additional input needed - uses user context from session
-});
-
 // Export types
-export type CheckAdminInput = z.infer<typeof CheckAdminInputSchema>;
 export type PublicSignupStatusInput = z.infer<
   typeof PublicSignupStatusInputSchema
 >;
@@ -67,4 +52,3 @@ export type PasswordResetRequestInput = z.infer<
   typeof PasswordResetRequestInputSchema
 >;
 export type PasswordResetInput = z.infer<typeof PasswordResetInputSchema>;
-export type CheckAdminStatusInput = z.infer<typeof CheckAdminStatusInputSchema>;

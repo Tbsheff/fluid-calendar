@@ -14,11 +14,12 @@ import { trpc } from "@/lib/trpc/client";
 export function AuthTest() {
   const [testResults, setTestResults] = useState<string[]>([]);
 
-  // tRPC queries
-  const checkAdminStatusQuery = trpc.auth.checkAdminStatus.useQuery(
-    {},
-    { enabled: false }
-  );
+  // tRPC query for isAdmin
+  const isAdminQuery = trpc.auth.isAdmin.useQuery(undefined, {
+    // `enabled: false` means it won't run on mount, only when `refetch` is called.
+    // For a real-world scenario, you might want it enabled based on session status.
+    enabled: false,
+  });
 
   const addResult = (result: string) => {
     setTestResults((prev) => [
@@ -27,19 +28,25 @@ export function AuthTest() {
     ]);
   };
 
-  const testCheckAdminStatus = async () => {
+  const testIsAdmin = async () => {
     try {
-      const result = await checkAdminStatusQuery.refetch();
+      // Refetch will execute the query
+      const result = await isAdminQuery.refetch();
       if (result.data) {
         addResult(
-          `✅ Check admin status: ${result.data.isAdmin ? "Admin" : "Not admin"}`
+          `✅ Is admin status: ${result.data.isAdmin ? "Admin" : "Not admin"}`
+        );
+      } else if (result.error) {
+        addResult(
+          `❌ Is admin status failed: ${result.error.message}`
         );
       } else {
-        addResult("❌ Check admin status: No data returned");
+        addResult("❌ Is admin status: No data or error returned");
       }
     } catch (error) {
+      // This catch block might be redundant if tRPC handles errors and puts them in result.error
       addResult(
-        `❌ Check admin status failed: ${error instanceof Error ? error.message : "Unknown error"}`
+        `❌ Is admin status failed (catch): ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   };
@@ -48,7 +55,8 @@ export function AuthTest() {
     setTestResults([]);
     addResult("🚀 Starting Auth tRPC tests...");
 
-    await testCheckAdminStatus();
+    await testIsAdmin();
+    // Add other auth tests here if needed
 
     addResult("✨ Auth tRPC tests completed!");
   };
@@ -69,16 +77,16 @@ export function AuthTest() {
         <div className="flex gap-2 flex-wrap">
           <Button
             onClick={runAllTests}
-            disabled={checkAdminStatusQuery.isFetching}
+            disabled={isAdminQuery.isFetching}
           >
-            {checkAdminStatusQuery.isFetching ? "Testing..." : "Run All Tests"}
+            {isAdminQuery.isFetching ? "Testing..." : "Run All Tests"}
           </Button>
           <Button
-            onClick={testCheckAdminStatus}
+            onClick={testIsAdmin}
             variant="outline"
-            disabled={checkAdminStatusQuery.isFetching}
+            disabled={isAdminQuery.isFetching}
           >
-            Test Check Admin Status
+            Test Is Admin Status
           </Button>
           <Button onClick={clearResults} variant="outline">
             Clear Results
@@ -104,19 +112,16 @@ export function AuthTest() {
           </p>
           <ul className="list-disc list-inside mt-2 space-y-1">
             <li>
-              <code>trpc.auth.checkAdminStatus</code> - Check if current user
-              has admin role
+              <code>trpc.auth.isAdmin</code> - Check if current user has admin role
             </li>
             <li>
-              <code>trpc.auth.getPublicSignupStatus</code> - Check if public
-              signup is enabled
+              <code>trpc.auth.getPublicSignupStatus</code> - Check if public signup is enabled
             </li>
             <li>
               <code>trpc.auth.register</code> - Register a new user
             </li>
             <li>
-              <code>trpc.auth.requestPasswordReset</code> - Request password
-              reset
+              <code>trpc.auth.requestPasswordReset</code> - Request password reset
             </li>
             <li>
               <code>trpc.auth.resetPassword</code> - Reset password with token

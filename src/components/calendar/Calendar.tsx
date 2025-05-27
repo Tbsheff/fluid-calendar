@@ -188,22 +188,33 @@ export function Calendar({
     timeFormat: "12h",
   };
 
-  const calendarSettings: CalendarSettings =
-    (calendarSettingsData as unknown as CalendarSettings) || {
-      defaultCalendarId: undefined,
-      workingHours: {
-        enabled: true,
-        start: "09:00",
-        end: "17:00",
-        days: [1, 2, 3, 4, 5],
-      },
-      eventDefaults: {
-        defaultDuration: 60,
-        defaultColor: "#3b82f6",
-        defaultReminder: 30,
-      },
-      refreshInterval: 5,
-    };
+  // Create a safe defaults object for calendar settings
+  const defaultCalendarSettings: CalendarSettings = {
+    defaultCalendarId: undefined,
+    workingHours: {
+      enabled: true,
+      start: "09:00",
+      end: "17:00",
+      days: [1, 2, 3, 4, 5],
+    },
+    eventDefaults: {
+      defaultDuration: 60,
+      defaultColor: "#3b82f6",
+      defaultReminder: 30,
+    },
+    refreshInterval: 5,
+  };
+
+  // Merge with data from tRPC, ensuring workingHours is always properly defined
+  const calendarSettingsFromAPI = calendarSettingsData as unknown as CalendarSettings;
+  const calendarSettings: CalendarSettings = {
+    ...defaultCalendarSettings,
+    ...calendarSettingsFromAPI,
+    workingHours: {
+      ...defaultCalendarSettings.workingHours,
+      ...(calendarSettingsFromAPI?.workingHours || {}),
+    },
+  };
 
   // Mutation handlers for calendar view components
   const handleUpdateTask = useCallback(

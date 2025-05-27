@@ -8,13 +8,6 @@ export const CheckAdminInputSchema = z.object({
 });
 
 /**
- * Input schema for checking admin status via tRPC
- */
-export const CheckAdminStatusInputSchema = z.object({
-  userId: z.string().uuid("Valid user ID is required"),
-});
-
-/**
  * Input schema for checking public signup status
  */
 export const PublicSignupStatusInputSchema = z.object({
@@ -57,19 +50,8 @@ export const PasswordResetInputSchema = z.object({
     ),
 });
 
-/**
- * Auth error class
- */
-export class AuthError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AuthError";
-  }
-}
-
 // Export types
 export type CheckAdminInput = z.infer<typeof CheckAdminInputSchema>;
-export type CheckAdminStatusInput = z.infer<typeof CheckAdminStatusInputSchema>;
 export type PublicSignupStatusInput = z.infer<
   typeof PublicSignupStatusInputSchema
 >;

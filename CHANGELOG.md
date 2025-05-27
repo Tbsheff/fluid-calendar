@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refactored admin status check to use a direct tRPC procedure (`auth.isAdmin`) that inspects session context, instead of a separate API route and library function.
+  - Removed `/api/auth/check-admin` route.
+  - Removed `checkAdminStatus` function from `@/lib/api/auth`.
+  - Removed related `CheckAdminStatusInputSchema` and `AuthError` from `@/lib/api/auth/schemas`.
+  - Removed related tRPC input schemas from `server/trpc/routers/auth/schemas.ts`.
+  - Updated `useAdmin` hook to use the new `auth.isAdmin` tRPC query.
+  - Updated `AuthTest.tsx` to test the new `auth.isAdmin` tRPC query.
+
 ### Fixed
+
+- **SetupCheck Hook Error**: Fixed "Invalid hook call" error in SetupCheck component caused by calling `trpc.useUtils()` inside `useEffect`
+  - Moved `trpc.useUtils()` call to the component's top level to comply with React's Rules of Hooks
+  - Added utils to the useEffect dependency array for proper reactivity
+  - Maintained existing functionality while ensuring proper hook usage patterns
+- **Calendar Settings Undefined Error**: Fixed "Cannot read properties of undefined (reading 'start')" error in calendar components
+  - Enhanced calendar settings defaults handling in Calendar component to ensure `workingHours` is always properly defined
+  - Improved object merging pattern to safely handle partial tRPC responses
+  - Fixed potential undefined access to `calendarSettings.workingHours.start`, `end`, `enabled`, and `days` properties
+  - This fix resolves errors in WeekView, DayView, and other calendar view components that receive settings as props
 
 - **Store Dependencies Refactoring**: Completed migration from deprecated Zustand stores to tRPC
   - Refactored AutoScheduleSettings component to use tRPC instead of deprecated useSettingsStore
@@ -26,7 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed build errors caused by deprecated store dependencies
   - Removed deprecated store imports from Google and Outlook calendar libraries
   - Removed deprecated store fallback logic from SchedulingService
-
 - **Schema Generation Issue**: Fixed `npm run db:generate` not generating Zod schemas
   - Replaced incompatible `prisma-zod-generator@0.8.13` with `zod-prisma-types@3.2.1`
   - Updated Prisma schema generator configuration to use working provider
@@ -59,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced type safety with proper TypeScript interfaces and Record<string, unknown> for extendedProps
   - Fixed TypeScript compatibility issues with tag handling (Task.tags → tagIds for tRPC mutations)
   - Build verification: Successful TypeScript compilation, formatting, and linting
+- Fixed auto-scheduling to correctly use user's timezone by passing it from `TaskSchedulingService` to `SchedulingService` and then to `TimeSlotManagerImpl`.
 
 ### Added
 
@@ -349,60 +368,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test Components**: Added `ImportExportTest.tsx` for testing the new tRPC endpoints
 - **Type Safety**: Enhanced type safety with Zod schemas and proper error handling
 
-### Changed
+### Fixed
 
-- **Frontend tRPC Migration Started**: Began migrating frontend components from direct API calls to tRPC hooks
-
-  - **TaskSyncSettings Component**: Fully completed migration to tRPC hooks for all task sync operations
-
-    - **Provider Operations**: Migrated all provider CRUD operations to tRPC
-      - `trpc.taskSync.providers.getAll.useQuery()` for fetching providers with account details
-      - `trpc.taskSync.providers.create.useMutation()` for creating new providers
-      - `trpc.taskSync.providers.delete.useMutation()` for deleting providers
-      - `trpc.taskSync.providers.getLists.useQuery()` for fetching external task lists
-    - **Mapping Operations**: Migrated all task list mapping operations to tRPC
-      - `trpc.taskSync.mappings.create.useMutation()` for creating task list mappings
-      - `trpc.taskSync.mappings.delete.useMutation()` for removing mappings
-    - **Sync Operations**: Migrated sync trigger operations to tRPC
-      - `trpc.taskSync.sync.trigger.useMutation()` for triggering provider and mapping syncs
-    - **Project Integration**: Migrated project creation to tRPC
-      - `trpc.projects.create.useMutation()` for creating new projects during mapping setup
-    - **Error Handling**: Updated to use tRPC error patterns with proper TypeScript types
-    - **Type Safety**: Fixed TypeScript compatibility issues between API responses and component interfaces
-    - **tRPC v11 Compatibility**: Updated callback patterns from deprecated `onSuccess`/`onError` to `useEffect` patterns
-    - **Maintained UX**: Preserved all existing UI functionality while improving type safety and error handling
-
-  - **ProjectSidebar Component**: Successfully migrated to tRPC hooks for task sync operations
-    - **Mapping Operations**: Migrated task list mapping fetching to tRPC
-      - `trpc.taskSync.mappings.getAll.useQuery()` for fetching all task list mappings with provider and project details
-      - Automatic data transformation to group mappings by project ID for UI display
-    - **Sync Operations**: Migrated project sync triggering to tRPC
-      - `trpc.taskSync.sync.trigger.useMutation()` for triggering sync operations on specific mappings
-      - Improved error handling with proper logging and user feedback
-    - **State Management**: Enhanced sync state management with proper loading indicators
-    - **Error Handling**: Implemented comprehensive error logging and user notifications
-    - **Type Safety**: Resolved TypeScript compatibility issues between tRPC responses and component interfaces
-    - **Performance**: Optimized data fetching with conditional queries based on project availability
-  - **Store Deprecation Warnings**: Added deprecation warnings to Zustand store methods to guide migration
-    - Task store methods now warn developers to use tRPC hooks instead of direct API calls
-    - Project store already includes tRPC-compatible methods with deprecation warnings for legacy methods
-    - Maintained backward compatibility while encouraging tRPC adoption
-    - **Migration Progress**: Frontend migration started with high-priority components identified and TaskSyncSettings completed
-
-- **tRPC Backend Migration**: Migrated 51 out of 54 API routes to tRPC procedures (94.4% complete)
-  - Added 95 tRPC procedures across 15 domains (accounts, auth, calendar, events, feeds, import-export, integration-status, logs, projects, settings, setup, system-settings, tags, task-sync, tasks)
-  - Google Calendar: 9 procedures (6 calendar + 3 events)
-  - Outlook Calendar: 9 procedures (6 calendar + 3 events)
-  - CalDAV Calendar: 10 procedures (7 calendar + 3 events)
-  - Auth: 5 procedures including admin status checking
-  - Comprehensive error handling with proper HTTP status codes
-  - Full TypeScript type safety with Zod validation
-  - Protected procedures with user authentication
-
-### Removed
-
-- **Legacy API Routes**: Removed 15 Next.js API route files that have been successfully migrated to tRPC
-- **Zustand Dependencies**: Reduced reliance on Zustand for API state management in favor of React Query integration
+- **Store Dependencies Refactoring**: Completed migration from deprecated Zustand stores to tRPC
+  - Refactored AutoScheduleSettings component to use tRPC instead of deprecated useSettingsStore
+  - Refactored SystemSettings component to use tRPC instead of deprecated useSettingsStore  
+  - Refactored TaskSyncSettings component to use tRPC instead of deprecated useSettingsStore
+  - Refactored EditableCell component to use tRPC for projects instead of deprecated useProjectStore
+  - Updated calendar commands to use correct calendar UI store imports
+  - Updated task commands to use correct task UI store imports
+  - Modified Google Calendar functions to accept timezone as parameter instead of using store
+  - Modified Outlook Calendar functions to accept timezone as parameter instead of using store
+  - Updated SchedulingService to require AutoScheduleSettings parameter instead of fallback to store
+  - Refactored TaskModal component to use tRPC for projects instead of deprecated useProjectStore
+  - Added temporary local state fallbacks for TaskList component (TODO: implement proper stores)
+  - Fixed SetupCheck component to use tRPC instead of deprecated useSetupStore
+  - Fixed SetupForm component to remove deprecated useSetupStore dependency
+  - Fixed build errors caused by deprecated store dependencies
+  - Removed deprecated store imports from Google and Outlook calendar libraries
+  - Removed deprecated store fallback logic from SchedulingService
+- **Schema Generation Issue**: Fixed `npm run db:generate` not generating Zod schemas
+  - Replaced incompatible `prisma-zod-generator@0.8.13` with `zod-prisma-types@3.2.1`
+  - Updated Prisma schema generator configuration to use working provider
+  - Updated `src/lib/api/tags/schemas.ts` to use new generated schema format (`TagSchema` instead of `TagCreateInputSchema`/`TagUpdateInputSchema`)
+  - All Zod schemas now generate correctly from Prisma models, providing TypeScript type safety
+- **Dynamic Import Issues**: Fixed Next.js build errors with dynamic imports using template literals
+  - Fixed `src/lib/email/password-reset.ts` to use conditional imports instead of template literal imports
+  - Fixed `src/components/calendar/Calendar.tsx` LifetimeAccessBanner dynamic import pattern
+  - Created missing `LifetimeAccessBanner.saas.tsx` component file
+  - All dynamic imports now work correctly with Next.js static analysis
+- **CRITICAL**: Fixed tRPC authentication by implementing proper session extraction from NextAuth JWT tokens
+- **CRITICAL**: Fixed infinite re-render loop in EventModal component caused by failed tRPC queries
+- Fixed "Maximum update depth exceeded" React error in calendar components
+- Fixed "Failed to load feeds from database" errors caused by authentication failures
+- **Fixed remaining legacy calendar store usage**: Migrated all remaining components using deprecated `loadFromDatabase()` method to tRPC
+  - Fixed WeekView, MonthView, MultiMonthView, and DayView components to use tRPC data from parent Calendar component
+  - Fixed AutoScheduleSettings component to use `trpc.feeds.getAll.useQuery()` instead of calendar store
+  - Fixed CalendarSettings component to use `trpc.feeds.getAll.useQuery()` instead of calendar store
+  - Removed all remaining calls to deprecated `loadFromDatabase()` method
+- Improved error handling in EventModal to prevent retry loops on authentication failures
+- **Calendar View Components Migration**: Complete migration of all calendar view components from legacy store patterns to prop-driven architecture
+  - `src/components/calendar/WeekView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/MonthView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/MultiMonthView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/DayView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/Calendar.tsx`: Updated parent component to fetch all required data via tRPC and pass as props to calendar view components
+  - Removed all direct calls to `useTaskStore.getState()`, `useCalendarStore.getState()`, and `useSettingsStore()` methods
+  - Converted all components to accept data and mutation handlers as props for full tRPC compatibility
+  - Created `CalendarDisplayEvent` interface for FullCalendar event formatting consistency
+  - Enhanced type safety with proper TypeScript interfaces and Record<string, unknown> for extendedProps
+  - Fixed TypeScript compatibility issues with tag handling (Task.tags → tagIds for tRPC mutations)
+  - Build verification: Successful TypeScript compilation, formatting, and linting
+- Fixed auto-scheduling to correctly use user's timezone by passing it from `TaskSchedulingService` to `SchedulingService` and then to `TimeSlotManagerImpl`.
 
 ## [1.3.0] 2025-03-25
 
