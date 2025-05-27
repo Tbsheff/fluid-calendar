@@ -19,12 +19,14 @@ const statusColors = {
   [TaskStatus.TODO]: "bg-yellow-500/10 border-yellow-500/20",
   [TaskStatus.IN_PROGRESS]: "bg-blue-500/10 border-blue-500/20",
   [TaskStatus.COMPLETED]: "bg-green-500/10 border-green-500/20",
+  [TaskStatus.CANCELLED]: "bg-gray-500/10 border-gray-500/20",
 };
 
 const statusHeaderColors = {
   [TaskStatus.TODO]: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400",
   [TaskStatus.IN_PROGRESS]: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
   [TaskStatus.COMPLETED]: "bg-green-500/20 text-green-700 dark:text-green-400",
+  [TaskStatus.CANCELLED]: "bg-gray-500/20 text-gray-700 dark:text-gray-400",
 };
 
 // Helper function to format enum values for display

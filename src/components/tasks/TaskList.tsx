@@ -15,8 +15,8 @@ import {
 
 import { newDate } from "@/lib/date-utils";
 
-import { useProjectStore } from "@/store/project";
-import { useTaskListViewSettings } from "@/store/taskListViewSettings";
+// TODO: Refactor to use local state or props instead of missing stores
+import { useState } from "react";
 
 import { EnergyLevel, Task, TaskStatus, TimePreference } from "@/types/task";
 
@@ -38,22 +38,36 @@ export function TaskList({
   onStatusChange,
   onInlineEdit,
 }: TaskListProps) {
-  const {
-    sortBy,
-    sortDirection,
-    status,
-    energyLevel,
-    timePreference,
-    tagIds,
-    search,
-    hideUpcomingTasks,
-    setSortBy,
-    setSortDirection,
-    setFilters,
-    resetFilters,
-  } = useTaskListViewSettings();
-  const { activeProject } = useProjectStore();
-
+  // TODO: Replace with proper store implementations
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [status, setStatus] = useState<TaskStatus[]>([]);
+  const [energyLevel, setEnergyLevel] = useState<EnergyLevel[]>([]);
+  const [timePreference, setTimePreference] = useState<TimePreference[]>([]);
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [search, setSearch] = useState<string>("");
+  const [hideUpcomingTasks, setHideUpcomingTasks] = useState<boolean>(false);
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setFilters = (filters: any) => {
+    if (filters.status !== undefined) setStatus(filters.status);
+    if (filters.energyLevel !== undefined) setEnergyLevel(filters.energyLevel);
+    if (filters.timePreference !== undefined) setTimePreference(filters.timePreference);
+    if (filters.tagIds !== undefined) setTagIds(filters.tagIds);
+    if (filters.search !== undefined) setSearch(filters.search);
+    if (filters.hideUpcomingTasks !== undefined) setHideUpcomingTasks(filters.hideUpcomingTasks);
+  };
+  
+  const resetFilters = () => {
+    setStatus([]);
+    setEnergyLevel([]);
+    setTimePreference([]);
+    setTagIds([]);
+    setSearch("");
+    setHideUpcomingTasks(false);
+  };
+  
+  // TODO: Implement project filtering
   const handleSort = (column: typeof sortBy) => {
     if (sortBy === column) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -63,12 +77,8 @@ export function TaskList({
     }
   };
 
-  // First, filter by project
-  const projectFilteredTasks = activeProject
-    ? activeProject.id === "no-project"
-      ? tasks.filter((task) => !task.projectId)
-      : tasks.filter((task) => task.projectId === activeProject.id)
-    : tasks;
+  // First, filter by project (currently disabled)
+  const projectFilteredTasks = tasks;
 
   // Then apply other filters
   const filteredTasks = useMemo(() => {

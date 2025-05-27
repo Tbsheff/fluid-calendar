@@ -6,12 +6,11 @@ generator client {
 }
 
 generator zod {
-  provider              = "prisma-zod-generator"
-  output                = "../src/lib/generated"
-  relationModel         = true
-  modelCase             = "camelCase"
-  modelSuffix           = "Schema"
-  prismaJsonNullability = true
+  provider                 = "zod-prisma-types"
+  output                   = "../src/lib/generated"
+  useMultipleFiles         = false
+  writeNullishInModelTypes = true
+  createInputTypes         = false
 }
 
 datasource db {
@@ -172,7 +171,7 @@ model Project {
   name             String
   description      String?
   color            String?
-  status           String            @default("active") // enum: 'active', 'archived'
+  status           ProjectStatus     @default(ACTIVE)
   tasks            Task[]
   taskListMappings TaskListMapping[]
 
@@ -195,18 +194,18 @@ model Project {
 }
 
 model Task {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
   description String?
-  status      String // enum: 'todo', 'in_progress', 'completed'
+  status      TaskStatus @default(TODO)
 
   // Time Management
   dueDate       DateTime?
   startDate     DateTime? // When the task becomes active
   duration      Int? // estimated duration in minutes
-  priority      String? // enum: 'high', 'medium', 'low', 'none'
-  energyLevel   String? // enum: 'high', 'medium', 'low'
-  preferredTime String? // enum: 'morning', 'afternoon', 'evening'
+  priority      Priority? // enum: 'high', 'medium', 'low', 'none'
+  energyLevel   EnergyLevel? // enum: 'high', 'medium', 'low'
+  preferredTime TimePreference? // enum: 'morning', 'afternoon', 'evening'
 
   // Auto-scheduling
   isAutoScheduled Boolean   @default(false)
@@ -625,6 +624,38 @@ enum SubscriptionStatus {
   ACTIVE
   PAYMENT_PENDING
   PAYMENT_FAILED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
+enum EnergyLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TimePreference {
+  MORNING
+  AFTERNOON
+  EVENING
+  ANYTIME
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
 }
 
 model Subscription {

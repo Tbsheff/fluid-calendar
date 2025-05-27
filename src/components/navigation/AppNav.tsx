@@ -9,7 +9,7 @@ import { RiKeyboardLine } from "react-icons/ri";
 
 import { cn } from "@/lib/utils";
 
-import { useShortcutsStore } from "@/store/shortcuts";
+import { useUIStore } from "@/store/ui";
 
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
@@ -20,7 +20,7 @@ interface AppNavProps {
 
 export function AppNav({ className }: AppNavProps) {
   const pathname = usePathname();
-  const { setOpen: setShortcutsOpen } = useShortcutsStore();
+  const { setShortcutsModalOpen } = useUIStore();
 
   // Function to trigger command palette
   const openCommandPalette = () => {
@@ -84,7 +84,7 @@ export function AppNav({ className }: AppNavProps) {
             </button>
             <ThemeToggle />
             <button
-              onClick={() => setShortcutsOpen(true)}
+              onClick={() => setShortcutsModalOpen(true)}
               className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               title="View Keyboard Shortcuts (Press ?)"
             >

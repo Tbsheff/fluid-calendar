@@ -29,10 +29,15 @@ export async function sendPasswordResetEmail({
     // Get the email template
     const html = getPasswordResetTemplate(name, resetLink, expirationDate);
 
-    // Dynamically import the correct email service based on SAAS flag
-    const { EmailService } = await import(
-      `./email-service${isSaasEnabled ? ".saas" : ".open"}`
-    );
+    // Import the correct email service based on SAAS flag
+    let EmailService;
+    if (isSaasEnabled) {
+      const emailModule = await import("./email-service.saas");
+      EmailService = emailModule.EmailService;
+    } else {
+      const emailModule = await import("./email-service.open");
+      EmailService = emailModule.EmailService;
+    }
 
     // Send the email using the appropriate service
     const { jobId } = await EmailService.sendEmail({

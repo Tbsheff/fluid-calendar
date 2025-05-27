@@ -16,7 +16,7 @@ import {
 } from "@/lib/date-utils";
 import { prisma } from "@/lib/prisma";
 
-import { useSettingsStore } from "@/store/settings";
+// Removed deprecated settings store import
 
 import { Conflict, TimeSlot } from "@/types/scheduling";
 
@@ -53,10 +53,11 @@ export class TimeSlotManagerImpl implements TimeSlotManager {
 
   constructor(
     private settings: AutoScheduleSettings,
-    private calendarService: CalendarService
+    private calendarService: CalendarService,
+    timeZone: string = "UTC"
   ) {
     this.slotScorer = new SlotScorer(settings);
-    this.timeZone = useSettingsStore.getState().user.timeZone;
+    this.timeZone = timeZone;
   }
 
   async updateScheduledTasks(userId: string): Promise<void> {

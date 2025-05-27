@@ -57,30 +57,63 @@
 - [x] Enhanced error handling with toast notifications and proper TypeScript types
 - [x] Build verification: TypeScript compilation, formatting, and linting
 
-### Phase 6: Project Components Migration (4-6 hours, Medium Risk)
+### Phase 6: Project Components Migration ✅ COMPLETED
 
-- [ ] ProjectModal.tsx - Project CRUD operations to tRPC
-- [ ] ProjectSidebar.tsx - Already migrated task sync, complete remaining operations
-- [ ] DeleteProjectDialog.tsx - Project deletion to tRPC
+- [x] ProjectModal.tsx - Project CRUD operations to tRPC
+- [x] ProjectSidebar.tsx - Already migrated task sync, complete remaining operations
+- [x] DeleteProjectDialog.tsx - Project deletion to tRPC
+- [x] Enhanced error handling with toast notifications and proper TypeScript types
+- [x] Build verification: TypeScript compilation, formatting, and linting
 
-### Phase 7: DnD System Migration (2-3 hours, Low Risk)
+### Phase 7: DnD System Migration ✅ COMPLETED
 
-- [ ] useDragAndDrop.ts - Update drag and drop operations to use tRPC
+- [x] DndProvider.tsx - Migrated from deprecated store methods to tRPC hooks for task project assignment
+- [x] useDragAndDrop.ts - No changes needed (pure wrapper hooks around @dnd-kit/core)
+- [x] Enhanced error handling with toast notifications and comprehensive logging
+- [x] Build verification: TypeScript compilation, formatting, and linting
 
-### Phase 8: Store Cleanup (2-3 hours, Low Risk)
+### Phase 8: Calendar View Components Migration ✅ COMPLETED
 
-- [ ] Remove deprecated store methods
-- [ ] Update remaining store dependencies
+- [x] WeekView.tsx - Migrated from legacy store patterns to prop-driven architecture with tRPC compatibility
+- [x] MonthView.tsx - Migrated from legacy store patterns to prop-driven architecture with tRPC compatibility
+- [x] MultiMonthView.tsx - Migrated from legacy store patterns to prop-driven architecture with tRPC compatibility
+- [x] DayView.tsx - Migrated from legacy store patterns to prop-driven architecture with tRPC compatibility
+- [x] Update parent Calendar component to fetch all required data via tRPC and pass as props
+- [x] Enhanced error handling with toast notifications and proper TypeScript types
+- [x] Build verification: TypeScript compilation, formatting, and linting
+
+### Phase 9: Hybrid State Management Implementation 🚧 IN PROGRESS
+
+**Approach**: Keep UI state in Zustand stores, server state in tRPC (best practice)
+
+**Completed:**
+- [x] Created minimal UI-only stores:
+  - `src/store/ui.ts` - Global UI state (modals, sidebar)
+  - `src/store/calendar-ui.ts` - Calendar view state (date, view mode, sidebar)
+  - `src/store/task-ui.ts` - Task page state (view mode, modal, project filter)
+- [x] Updated Calendar component to use calendar UI store
+- [x] Updated layout to use global UI store
+- [x] Updated tasks page to use task UI store
+
+**Remaining:**
+- [ ] Fix remaining components importing deleted stores:
+  - EventModal.tsx (settings store)
+  - FeedManager.tsx (calendar store)
+  - FocusMode components (focusMode store)
+  - Other components with store imports
+- [ ] Remove deprecated server-state methods from any remaining stores
 - [ ] Clean up unused imports and dependencies
+- [ ] Verify all components use tRPC for server state, stores for UI state only
+- [ ] Run comprehensive tests to ensure no regressions
 
-### Phase 9: Final Cleanup & Testing (3-4 hours, Low Risk)
+### Phase 10: Final Cleanup & Testing (3-4 hours, Low Risk)
 
 - [ ] Remove all direct API fetch calls
 - [ ] Update error handling patterns
 - [ ] Performance optimization
 - [ ] Comprehensive testing
 
-**Current Status**: Phase 5 complete - Focus Mode components migrated to tRPC with enhanced error handling and store deprecation warnings. Phase 6 (Project Components Migration) ready to begin.
+**Current Status**: Phase 9 in progress - Implementing hybrid state management approach with UI-only stores for client state and tRPC for server state. Created new minimal stores (ui.ts, calendar-ui.ts, task-ui.ts) and updated major components to use them.
 
 ## tRPC Migration Progress
 
@@ -754,3 +787,13 @@
 ---
 
 ## Task Sync Phase 1 Tasks
+
+## Calendar View Components tRPC Migration
+
+- [ ] Refactor WeekView.tsx to use tRPC hooks and props, remove all store usage
+- [ ] Refactor MonthView.tsx to use tRPC hooks and props, remove all store usage
+- [ ] Refactor MultiMonthView.tsx to use tRPC hooks and props, remove all store usage
+- [ ] Refactor DayView.tsx to use tRPC hooks and props, remove all store usage
+- [ ] Update parent Calendar component to fetch and pass all required data and mutation handlers
+- [ ] Test all calendar views for correct CRUD, quick view, and modal behavior
+- [ ] Update CHANGELOG.md with migration summary

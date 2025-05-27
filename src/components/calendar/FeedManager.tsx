@@ -8,13 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useViewStore } from "@/store/calendar";
+import { useCalendarUIStore } from "@/store/calendar-ui";
 
 import { MiniCalendar } from "./MiniCalendar";
 
 export function FeedManager() {
   const [syncingFeeds, setSyncingFeeds] = useState<Set<string>>(new Set());
-  const { date: currentDate, setDate } = useViewStore();
+  const { currentDate, setDate } = useCalendarUIStore();
 
   // Use tRPC to fetch feeds
   const { data: feeds = [], refetch: refetchFeeds } =

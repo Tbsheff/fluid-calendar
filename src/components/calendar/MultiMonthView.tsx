@@ -15,12 +15,9 @@ import { TaskModal } from "@/components/tasks/TaskModal";
 import { useEventModalStore } from "@/lib/commands/groups/calendar";
 import { newDate } from "@/lib/date-utils";
 
-import { useCalendarStore } from "@/store/calendar";
-import { useSettingsStore } from "@/store/settings";
-import { useTaskStore } from "@/store/task";
-
-import { CalendarEvent, ExtendedEventProps } from "@/types/calendar";
-import { Task, TaskStatus } from "@/types/task";
+import { CalendarEvent, CalendarFeed } from "@/types/calendar";
+import { UserSettings } from "@/types/settings";
+import { Tag, Task, TaskStatus } from "@/types/task";
 
 import { CalendarEventContent } from "./CalendarEventContent";
 import { EventModal } from "./EventModal";
@@ -29,38 +26,55 @@ import { EventQuickView } from "./EventQuickView";
 interface MultiMonthViewProps {
   currentDate: Date;
   onDateClick?: (date: Date) => void;
+  tasks: Task[];
+  tags: Tag[];
+  feeds: CalendarFeed[];
+  events: CalendarEvent[];
+  userSettings: UserSettings;
+  getAllCalendarItems: (start: Date, end: Date) => CalendarEvent[];
+  onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onCreateTag: (name: string, color?: string) => Promise<Tag>;
+  onRemoveEvent: (eventId: string, mode: "series" | "single") => Promise<void>;
+}
+
+interface CalendarDisplayEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  location?: string;
+  backgroundColor: string;
+  borderColor: string;
+  allDay: boolean;
+  classNames: string[];
+  extendedProps?: Record<string, unknown>;
 }
 
 export function MultiMonthView({
   currentDate,
   onDateClick,
+  tasks,
+  tags,
+  feeds,
+  events,
+  userSettings,
+  getAllCalendarItems,
+  onUpdateTask,
+  onDeleteTask,
+  onCreateTag,
+  onRemoveEvent,
 }: MultiMonthViewProps) {
-  const { feeds, getAllCalendarItems, isLoading, removeEvent } =
-    useCalendarStore();
-  const { user: userSettings } = useSettingsStore();
-  const { updateTask } = useTaskStore();
   const [selectedEvent, setSelectedEvent] = useState<Partial<CalendarEvent>>();
   const [selectedTask, setSelectedTask] = useState<Task>();
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedEndDate, setSelectedEndDate] = useState<Date>();
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [events, setEvents] = useState<
-    Array<{
-      id: string;
-      title: string;
-      start: Date;
-      end: Date;
-      location?: string;
-      backgroundColor: string;
-      borderColor: string;
-      allDay: boolean;
-      classNames: string[];
-      extendedProps?: ExtendedEventProps;
-    }>
-  >([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarDisplayEvent[]>(
+    []
+  );
   const calendarRef = useRef<FullCalendar>(null);
-  const tasks = useTaskStore((state) => state.tasks);
   const [quickViewItem, setQuickViewItem] = useState<CalendarEvent | Task>();
   const [quickViewPosition, setQuickViewPosition] = useState({ x: 0, y: 0 });
   const [isTask, setIsTask] = useState(false);
@@ -98,27 +112,17 @@ export function MultiMonthView({
             ...item,
             isTask: item.extendedProps?.isTask,
             isRecurring: item.isRecurring,
-            status: item.extendedProps?.status,
-            priority: item.extendedProps?.priority,
+            status: item.extendedProps?.status?.toString(),
+            priority: item.extendedProps?.priority?.toString(),
           },
         }));
-
-      setEvents(formattedItems);
+      setCalendarEvents(formattedItems);
     },
     [feeds, getAllCalendarItems]
   );
 
-  // Initial data load
   useEffect(() => {
-    Promise.all([
-      useCalendarStore.getState().loadFromDatabase(),
-      useTaskStore.getState().fetchTasks(),
-    ]);
-  }, []);
-
-  // Update items when loading state changes, feeds change, or tasks change
-  useEffect(() => {
-    if (!isLoading && calendarRef.current) {
+    if (calendarRef.current) {
       const calendar = calendarRef.current.getApi();
       handleDatesSet({
         start: calendar.view.activeStart,
@@ -129,9 +133,8 @@ export function MultiMonthView({
         view: calendar.view,
       });
     }
-  }, [isLoading, feeds, userSettings.timeZone, handleDatesSet, tasks]);
+  }, [feeds, userSettings.timeZone, handleDatesSet, tasks, events]);
 
-  // Update calendar date when currentDate changes
   useEffect(() => {
     if (calendarRef.current) {
       setTimeout(() => {
@@ -147,24 +150,19 @@ export function MultiMonthView({
     const item = info.event.extendedProps;
     const itemId = info.event.id;
     const isTask = item.isTask;
-
-    // Calculate position for the quick view
     const rect = info.el.getBoundingClientRect();
     setQuickViewPosition({
       x: rect.left,
       y: rect.bottom + 8,
     });
-
     if (isTask) {
-      const task = useTaskStore.getState().tasks.find((t) => t.id === itemId);
+      const task = tasks.find((t) => t.id === itemId);
       if (task) {
         setQuickViewItem(task);
         setIsTask(true);
       }
     } else {
-      const event = useCalendarStore
-        .getState()
-        .events.find((e) => e.id === itemId);
+      const event = events.find((e) => e.id === itemId);
       setQuickViewItem(event as CalendarEvent);
       setIsTask(false);
     }
@@ -173,12 +171,9 @@ export function MultiMonthView({
   const handleDateSelect = (selectInfo: DateSelectArg) => {
     const start = selectInfo.start;
     const end = selectInfo.allDay ? start : selectInfo.end;
-
     setSelectedDate(start);
     setSelectedEndDate(end);
-    setSelectedEvent({
-      allDay: selectInfo.allDay,
-    });
+    setSelectedEvent({ allDay: selectInfo.allDay });
     setIsEventModalOpen(true);
   };
 
@@ -203,7 +198,6 @@ export function MultiMonthView({
 
   const handleQuickViewEdit = () => {
     if (!quickViewItem) return;
-
     if (isTask) {
       setSelectedTask(quickViewItem as Task);
       setIsTaskModalOpen(true);
@@ -216,17 +210,16 @@ export function MultiMonthView({
 
   const handleQuickViewDelete = async () => {
     if (!quickViewItem) return;
-
     if (isTask) {
       if (confirm("Are you sure you want to delete this task?")) {
-        await useTaskStore.getState().deleteTask(quickViewItem.id);
+        await onDeleteTask((quickViewItem as Task).id);
         handleQuickViewClose();
       }
     } else {
       if (confirm("Are you sure you want to delete this event?")) {
-        await removeEvent(
-          quickViewItem.id,
-          quickViewItem.isRecurring ? "series" : "single"
+        await onRemoveEvent(
+          (quickViewItem as CalendarEvent).id,
+          (quickViewItem as CalendarEvent).isRecurring ? "series" : "single"
         );
         handleQuickViewClose();
       }
@@ -238,14 +231,9 @@ export function MultiMonthView({
     status: TaskStatus
   ) => {
     if (!quickViewItem) return;
-
-    await updateTask(taskId, { status });
-
-    // Update the quick view item to reflect the new status
+    await onUpdateTask(taskId, { status });
     if (isTask) {
-      const updatedTask = useTaskStore
-        .getState()
-        .tasks.find((t) => t.id === taskId);
+      const updatedTask = tasks.find((t) => t.id === taskId);
       if (updatedTask) {
         setQuickViewItem(updatedTask);
       }
@@ -265,7 +253,7 @@ export function MultiMonthView({
         initialView="multiMonthYear"
         headerToolbar={false}
         initialDate={currentDate}
-        events={events}
+        events={calendarEvents}
         dayMaxEvents={true}
         multiMonthMaxColumns={3}
         expandRows={true}
@@ -282,31 +270,6 @@ export function MultiMonthView({
         datesSet={handleDatesSet}
         eventContent={renderEventContent}
       />
-
-      <EventModal
-        isOpen={isEventModalOpen || eventModalStore.isOpen}
-        onClose={handleEventModalClose}
-        event={selectedEvent}
-        defaultDate={selectedDate || eventModalStore.defaultDate}
-        defaultEndDate={selectedEndDate || eventModalStore.defaultEndDate}
-      />
-
-      {selectedTask && (
-        <TaskModal
-          isOpen={isTaskModalOpen}
-          onClose={handleTaskModalClose}
-          task={selectedTask}
-          tags={useTaskStore.getState().tags}
-          onSave={async (updates) => {
-            await useTaskStore.getState().updateTask(selectedTask.id, updates);
-            handleTaskModalClose();
-          }}
-          onCreateTag={async (name: string, color?: string) => {
-            return useTaskStore.getState().createTag({ name, color });
-          }}
-        />
-      )}
-
       {quickViewItem && (
         <EventQuickView
           isOpen={!!quickViewItem}
@@ -317,6 +280,26 @@ export function MultiMonthView({
           onStatusChange={handleQuickViewStatusChange}
           position={quickViewPosition}
           isTask={isTask}
+        />
+      )}
+      <EventModal
+        isOpen={isEventModalOpen || eventModalStore.isOpen}
+        onClose={handleEventModalClose}
+        event={selectedEvent}
+        defaultDate={selectedDate || eventModalStore.defaultDate}
+        defaultEndDate={selectedEndDate || eventModalStore.defaultEndDate}
+      />
+      {selectedTask && (
+        <TaskModal
+          isOpen={isTaskModalOpen}
+          onClose={handleTaskModalClose}
+          task={selectedTask}
+          tags={tags}
+          onSave={async (updates) => {
+            await onUpdateTask(selectedTask.id, updates);
+            handleTaskModalClose();
+          }}
+          onCreateTag={onCreateTag}
         />
       )}
     </div>

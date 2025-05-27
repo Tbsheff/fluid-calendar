@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -10,28 +8,61 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 import {
   formatTime,
   parseSelectedCalendars,
   parseWorkDays,
-  stringifySelectedCalendars,
-  stringifyWorkDays,
 } from "@/lib/autoSchedule";
-
-import { useCalendarStore } from "@/store/calendar";
-import { useSettingsStore } from "@/store/settings";
+import { trpc } from "@/lib/trpc/client";
 
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 export function AutoScheduleSettings() {
-  const { autoSchedule, updateAutoScheduleSettings } = useSettingsStore();
-  const { feeds, loadFromDatabase } = useCalendarStore();
+  // Get autoSchedule settings with tRPC instead of deprecated store
+  const { data: autoScheduleData, isLoading: isLoadingSettings } = trpc.settings.get.useQuery(
+    { type: "autoSchedule" },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
 
-  // Load calendar feeds when component mounts
-  useEffect(() => {
-    loadFromDatabase();
-  }, [loadFromDatabase]);
+  // Update autoSchedule settings with tRPC
+  const updateAutoScheduleSettings = trpc.settings.update.useMutation({
+    onSuccess: () => {
+      toast.success("Auto-schedule settings updated successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to update auto-schedule settings: ${error.message}`);
+    },
+  });
+
+  // Get feeds data with tRPC instead of deprecated calendar store
+  const { data: feeds = [] } = trpc.feeds.getAll.useQuery(
+    {},
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  // Cast the settings data to the expected type (tRPC returns union type)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const autoSchedule = autoScheduleData as any; // AutoScheduleSettings type from Prisma
+
+  // Show loading state
+  if (isLoadingSettings || !autoSchedule) {
+    return (
+      <SettingsSection
+        title="Auto-Schedule Settings"
+        description="Configure how tasks are automatically scheduled in your calendar."
+      >
+        <div className="text-sm text-muted-foreground">Loading settings...</div>
+      </SettingsSection>
+    );
+  }
 
   const workingDays = [
     { value: 0, label: "Sunday" },
@@ -53,6 +84,15 @@ export function AutoScheduleSettings() {
   );
   const workDays = parseWorkDays(autoSchedule.workDays);
 
+  // Helper function to update settings via tRPC
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleUpdateSettings = (updates: any) => {
+    updateAutoScheduleSettings.mutate({
+      type: "autoSchedule",
+      data: updates,
+    });
+  };
+
   return (
     <SettingsSection
       title="Auto-Schedule Settings"
@@ -63,28 +103,30 @@ export function AutoScheduleSettings() {
         description="Select which calendars to check for conflicts when auto-scheduling"
       >
         <div className="space-y-2">
-          {feeds.map((feed) => (
-            <div key={feed.id} className="flex items-center space-x-2">
-              <Switch
-                checked={selectedCalendars.includes(feed.id)}
-                onCheckedChange={(checked) => {
-                  const calendars = checked
-                    ? [...selectedCalendars, feed.id]
-                    : selectedCalendars.filter((id) => id !== feed.id);
-                  updateAutoScheduleSettings({
-                    selectedCalendars: stringifySelectedCalendars(calendars),
-                  });
-                }}
-              />
-              <Label className="flex items-center gap-2">
-                <span
-                  className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: feed.color || "var(--muted)" }}
+          {feeds.map(
+            (feed: { id: string; name: string; color?: string | null }) => (
+              <div key={feed.id} className="flex items-center space-x-2">
+                <Switch
+                  checked={selectedCalendars.includes(feed.id)}
+                  onCheckedChange={(checked) => {
+                    const calendars = checked
+                      ? [...selectedCalendars, feed.id]
+                      : selectedCalendars.filter((id) => id !== feed.id);
+                    handleUpdateSettings({
+                      selectedCalendars: calendars,
+                    });
+                  }}
                 />
-                {feed.name}
-              </Label>
-            </div>
-          ))}
+                <Label className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full"
+                    style={{ backgroundColor: feed.color || "var(--muted)" }}
+                  />
+                  {feed.name}
+                </Label>
+              </div>
+            )
+          )}
           {feeds.length === 0 && (
             <div className="text-sm text-muted-foreground">
               No calendars found. Please add calendars in the Calendar Settings.
@@ -104,7 +146,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.workHourStart.toString()}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     workHourStart: parseInt(value),
                   })
                 }
@@ -126,7 +168,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.workHourEnd.toString()}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     workHourEnd: parseInt(value),
                   })
                 }
@@ -156,8 +198,8 @@ export function AutoScheduleSettings() {
                       const days = checked
                         ? [...workDays, day.value]
                         : workDays.filter((d) => d !== day.value);
-                      updateAutoScheduleSettings({
-                        workDays: stringifyWorkDays(days),
+                      handleUpdateSettings({
+                        workDays: days,
                       });
                     }}
                   />
@@ -180,7 +222,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.highEnergyStart?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     highEnergyStart: value === "none" ? null : parseInt(value),
                   })
                 }
@@ -200,7 +242,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.highEnergyEnd?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     highEnergyEnd: value === "none" ? null : parseInt(value),
                   })
                 }
@@ -226,7 +268,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.mediumEnergyStart?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     mediumEnergyStart:
                       value === "none" ? null : parseInt(value),
                   })
@@ -247,7 +289,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.mediumEnergyEnd?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     mediumEnergyEnd: value === "none" ? null : parseInt(value),
                   })
                 }
@@ -273,7 +315,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.lowEnergyStart?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     lowEnergyStart: value === "none" ? null : parseInt(value),
                   })
                 }
@@ -293,7 +335,7 @@ export function AutoScheduleSettings() {
               <Select
                 value={autoSchedule.lowEnergyEnd?.toString() || "none"}
                 onValueChange={(value) =>
-                  updateAutoScheduleSettings({
+                  handleUpdateSettings({
                     lowEnergyEnd: value === "none" ? null : parseInt(value),
                   })
                 }
@@ -323,7 +365,7 @@ export function AutoScheduleSettings() {
           <Slider
             value={[autoSchedule.bufferMinutes]}
             onValueChange={([value]) =>
-              updateAutoScheduleSettings({ bufferMinutes: value })
+              handleUpdateSettings({ bufferMinutes: value })
             }
             min={0}
             max={60}
@@ -342,7 +384,7 @@ export function AutoScheduleSettings() {
         <Switch
           checked={autoSchedule.groupByProject}
           onCheckedChange={(checked) =>
-            updateAutoScheduleSettings({ groupByProject: checked })
+            handleUpdateSettings({ groupByProject: checked })
           }
         />
       </SettingRow>

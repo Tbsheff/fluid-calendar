@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 import { useAdmin } from "@/hooks/use-admin";
 
-import { useSettingsStore } from "@/store/settings";
+// Removed settings store - using tRPC directly in components
 
 // Add dynamic import for the waitlist page
 const WaitlistPage = dynamic(
@@ -57,12 +57,8 @@ type SettingsTab =
 export default function SettingsPage() {
   const [isHydrated, setIsHydrated] = useState(false);
   const { isAdmin, isLoading: isAdminLoading } = useAdmin();
-  const { initializeSettings } = useSettingsStore();
 
-  // Always initialize settings on mount
-  useEffect(() => {
-    initializeSettings();
-  }, [initializeSettings]);
+  // Note: Settings initialization removed - components now use tRPC directly
 
   const tabs = useMemo(() => {
     const baseTabs = [

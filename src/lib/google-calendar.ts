@@ -1,6 +1,6 @@
 import { calendar_v3, google } from "googleapis";
 
-import { useSettingsStore } from "@/store/settings";
+// Removed deprecated store import - timezone should be passed as parameter
 
 import { newDate, newDateFromYMD } from "./date-utils";
 import { createGoogleOAuthClient } from "./google";
@@ -57,10 +57,10 @@ export async function createGoogleEvent(
     allDay?: boolean;
     isRecurring?: boolean;
     recurrenceRule?: string;
-  }
+  },
+  timeZone: string = "UTC"
 ) {
   const calendar = await getGoogleCalendarClient(accountId, userId);
-  const timeZone = useSettingsStore.getState().user.timeZone;
 
   // Format recurrence rule for Google Calendar
   const recurrence =
@@ -112,10 +112,10 @@ export async function updateGoogleEvent(
     isRecurring?: boolean;
     recurrenceRule?: string;
     mode?: "single" | "series";
-  }
+  },
+  timeZone: string = "UTC"
 ) {
   const calendar = await getGoogleCalendarClient(accountId, userId);
-  const timeZone = useSettingsStore.getState().user.timeZone;
 
   try {
     // Get the event to check if it's part of a series

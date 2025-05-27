@@ -4,10 +4,14 @@ import { useState } from "react";
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { IoClose } from "react-icons/io5";
+import { toast } from "sonner";
 
-import { useProjectStore } from "@/store/project";
+import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { Project } from "@/types/project";
+
+const LOG_SOURCE = "DeleteProjectDialog";
 
 interface DeleteProjectDialogProps {
   isOpen: boolean;
@@ -22,19 +26,48 @@ export function DeleteProjectDialog({
   project,
   taskCount,
 }: DeleteProjectDialogProps) {
-  const { deleteProject } = useProjectStore();
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // tRPC mutation for deleting project
+  const deleteProjectMutation = trpc.projects.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Project deleted successfully");
+      onClose();
+      project.onClose?.();
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to delete project",
+        {
+          error: error.message,
+          projectId: project.id,
+          projectName: project.name,
+        },
+        LOG_SOURCE
+      );
+      toast.error("Failed to delete project", {
+        description: error.message,
+      });
+    },
+    onSettled: () => {
+      setIsDeleting(false);
+    },
+  });
 
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      await deleteProject(project.id);
-      onClose();
-      project.onClose?.();
+      await deleteProjectMutation.mutateAsync({ id: project.id });
     } catch (error) {
-      console.error("Error deleting project:", error);
-    } finally {
-      setIsDeleting(false);
+      // Error handling is done in the mutation onError callback
+      logger.error(
+        "Error in project deletion",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          projectId: project.id,
+        },
+        LOG_SOURCE
+      );
     }
   };
 

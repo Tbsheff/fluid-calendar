@@ -11,16 +11,21 @@ import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
 import { trpc } from "@/lib/trpc/client";
 
-import { useFocusModeStore } from "@/store/focusMode";
+import { useFocusUIStore } from "@/store/focus-ui";
 
-import { NewTask, Tag } from "@/types/task";
+import { NewTask, Tag, Task } from "@/types/task";
 
 export function QuickActions() {
-  const { completeCurrentTask, postponeTask, getCurrentTask } =
-    useFocusModeStore();
+  const { 
+    currentTaskId, 
+    startProcessing,
+    stopProcessing 
+  } = useFocusUIStore();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const currentTask = getCurrentTask();
+  // Get tasks data via tRPC
+  const { data: tasks = [] } = trpc.tasks.getAll.useQuery({});
+  const currentTask = tasks.find(task => task.id === currentTaskId) || null;
 
   // Use tRPC queries and mutations
   const { data: tags = [] } = trpc.tags.getAll.useQuery({});
@@ -109,7 +114,10 @@ export function QuickActions() {
     }
   };
 
-  const handleCreateTag = async (name: string, color?: string): Promise<Tag> => {
+  const handleCreateTag = async (
+    name: string,
+    color?: string
+  ): Promise<Tag> => {
     try {
       const result = await createTagMutation.mutateAsync({
         name,
@@ -127,6 +135,79 @@ export function QuickActions() {
     }
   };
 
+  const handlePostponeTask = async (duration: string) => {
+    if (!currentTask) return;
+
+    startProcessing("postpone", `Postponing task for ${duration}...`);
+    
+    try {
+      // Calculate postpone until date
+      const now = new Date();
+      let postponeUntil: Date;
+      
+      switch (duration) {
+        case "1h":
+          postponeUntil = new Date(now.getTime() + 60 * 60 * 1000);
+          break;
+        case "3h":
+          postponeUntil = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+          break;
+        case "1d":
+          postponeUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+          break;
+        case "1w":
+          postponeUntil = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          postponeUntil = new Date(now.getTime() + 60 * 60 * 1000);
+      }
+
+      await updateTaskMutation.mutateAsync({
+        taskId: currentTask.id,
+        data: {
+          postponedUntil: postponeUntil.toISOString(),
+        },
+      });
+      
+      toast.success(`Task postponed for ${duration}`);
+    } catch (error) {
+      logger.error("Failed to postpone task in focus mode", {
+        error: error instanceof Error ? error.message : String(error),
+        taskId: currentTask.id,
+        duration,
+      });
+      toast.error("Failed to postpone task");
+    } finally {
+      stopProcessing();
+    }
+  };
+
+  const handleCompleteTask = async () => {
+    if (!currentTask) return;
+
+    startProcessing("complete", "Completing task...");
+    
+    try {
+      await updateTaskMutation.mutateAsync({
+        taskId: currentTask.id,
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date().toISOString(),
+        },
+      });
+      
+      toast.success("Task completed!");
+    } catch (error) {
+      logger.error("Failed to complete task in focus mode", {
+        error: error instanceof Error ? error.message : String(error),
+        taskId: currentTask.id,
+      });
+      toast.error("Failed to complete task");
+    } finally {
+      stopProcessing();
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-4 p-4">
       <h2 className="text-lg font-semibold">Quick Actions</h2>
@@ -135,7 +216,7 @@ export function QuickActions() {
         {/* Complete Task */}
         <Button
           variant="outline"
-          onClick={() => completeCurrentTask()}
+          onClick={handleCompleteTask}
           className="justify-start"
           disabled={!currentTask}
         >
@@ -179,7 +260,7 @@ export function QuickActions() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => postponeTask("1h")}
+            onClick={() => handlePostponeTask("1h")}
             className="flex items-center"
             disabled={!currentTask}
           >
@@ -188,7 +269,7 @@ export function QuickActions() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => postponeTask("3h")}
+            onClick={() => handlePostponeTask("3h")}
             className="flex items-center"
             disabled={!currentTask}
           >
@@ -197,7 +278,7 @@ export function QuickActions() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => postponeTask("1d")}
+            onClick={() => handlePostponeTask("1d")}
             className="flex items-center"
             disabled={!currentTask}
           >
@@ -206,7 +287,7 @@ export function QuickActions() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => postponeTask("1w")}
+            onClick={() => handlePostponeTask("1w")}
             className="flex items-center"
             disabled={!currentTask}
           >
@@ -221,8 +302,8 @@ export function QuickActions() {
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
           onSave={handleEditTask}
-          task={currentTask}
-          tags={tags.map(tag => ({ ...tag, color: tag.color || undefined }))}
+          task={currentTask as Task}
+          tags={tags.map((tag) => ({ ...tag, color: tag.color || undefined }))}
           onCreateTag={handleCreateTag}
         />
       )}

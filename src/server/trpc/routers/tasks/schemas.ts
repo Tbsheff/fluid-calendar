@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-// Task status, energy level, and time preference enums for tRPC input validation
+// Task status, priority, energy level, and time preference enums for tRPC input validation
 export const TaskStatusSchema = z.enum([
   "TODO",
   "IN_PROGRESS",
   "COMPLETED",
   "CANCELLED",
 ]);
+export const PrioritySchema = z.enum(["HIGH", "MEDIUM", "LOW", "NONE"]);
 export const EnergyLevelSchema = z.enum(["LOW", "MEDIUM", "HIGH"]);
 export const TimePreferenceSchema = z.enum([
   "MORNING",
@@ -35,7 +36,7 @@ export const CreateTaskInputSchema = z.object({
     .nullable()
     .optional(),
   duration: z.number().positive().nullable().optional(),
-  priority: z.string().nullable().optional(),
+  priority: PrioritySchema.nullable().optional(),
   energyLevel: EnergyLevelSchema.nullable().optional(),
   preferredTime: TimePreferenceSchema.nullable().optional(),
   isAutoScheduled: z.boolean().default(false),

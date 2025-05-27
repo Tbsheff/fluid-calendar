@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,11 +16,14 @@ import { Label } from "@/components/ui/label";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useProjectStore } from "@/store/project";
+import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 
 import { Project, ProjectStatus } from "@/types/project";
 
 import { DeleteProjectDialog } from "./DeleteProjectDialog";
+
+const LOG_SOURCE = "ProjectModal";
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -27,12 +32,55 @@ interface ProjectModalProps {
 }
 
 export function ProjectModal({ isOpen, onClose, project }: ProjectModalProps) {
-  const { createProject, updateProject } = useProjectStore();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#E5E7EB");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // tRPC mutations
+  const createProjectMutation = trpc.projects.create.useMutation({
+    onSuccess: () => {
+      toast.success("Project created successfully");
+      onClose();
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to create project",
+        {
+          error: error.message,
+          name: name || "unknown",
+        },
+        LOG_SOURCE
+      );
+      toast.error("Failed to create project", {
+        description: error.message,
+      });
+    },
+  });
+
+  const updateProjectMutation = trpc.projects.update.useMutation({
+    onSuccess: () => {
+      toast.success("Project updated successfully");
+      onClose();
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to update project",
+        {
+          error: error.message,
+          projectId: project?.id || "unknown",
+          name: name || "unknown",
+        },
+        LOG_SOURCE
+      );
+      toast.error("Failed to update project", {
+        description: error.message,
+      });
+    },
+  });
+
+  const isSubmitting =
+    createProjectMutation.isPending || updateProjectMutation.isPending;
 
   useEffect(() => {
     if (project && isOpen) {
@@ -50,27 +98,32 @@ export function ProjectModal({ isOpen, onClose, project }: ProjectModalProps) {
     e.preventDefault();
     if (!name.trim()) return;
 
-    setIsSubmitting(true);
     try {
       if (project) {
-        await updateProject(project.id, {
+        await updateProjectMutation.mutateAsync({
+          id: project.id,
           name: name.trim(),
           description: description.trim() || undefined,
           color: color === "#E5E7EB" ? undefined : color,
         });
       } else {
-        await createProject({
+        await createProjectMutation.mutateAsync({
           name: name.trim(),
           description: description.trim() || undefined,
           color: color === "#E5E7EB" ? undefined : color,
           status: ProjectStatus.ACTIVE,
         });
       }
-      onClose();
     } catch (error) {
-      console.error("Error saving project:", error);
-    } finally {
-      setIsSubmitting(false);
+      // Error handling is done in the mutation onError callbacks
+      logger.error(
+        "Error in project form submission",
+        {
+          error: error instanceof Error ? error.message : String(error),
+          isUpdate: !!project,
+        },
+        LOG_SOURCE
+      );
     }
   };
 

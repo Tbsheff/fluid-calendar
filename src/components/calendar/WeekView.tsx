@@ -15,12 +15,9 @@ import { TaskModal } from "@/components/tasks/TaskModal";
 import { useEventModalStore } from "@/lib/commands/groups/calendar";
 import { newDate } from "@/lib/date-utils";
 
-import { useCalendarStore } from "@/store/calendar";
-import { useSettingsStore } from "@/store/settings";
-import { useTaskStore } from "@/store/task";
-
-import { CalendarEvent, ExtendedEventProps } from "@/types/calendar";
-import { Task, TaskStatus } from "@/types/task";
+import { CalendarEvent, CalendarFeed } from "@/types/calendar";
+import { CalendarSettings, UserSettings } from "@/types/settings";
+import { Tag, Task, TaskStatus } from "@/types/task";
 
 import { CalendarEventContent } from "./CalendarEventContent";
 import { EventModal } from "./EventModal";
@@ -29,35 +26,57 @@ import { EventQuickView } from "./EventQuickView";
 interface WeekViewProps {
   currentDate: Date;
   onDateClick?: (date: Date) => void;
+  tasks: Task[];
+  tags: Tag[];
+  feeds: CalendarFeed[];
+  events: CalendarEvent[];
+  userSettings: UserSettings;
+  calendarSettings: CalendarSettings;
+  getAllCalendarItems: (start: Date, end: Date) => CalendarEvent[];
+  onUpdateTask: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onCreateTag: (name: string, color?: string) => Promise<Tag>;
+  onRemoveEvent: (eventId: string, mode: "series" | "single") => Promise<void>;
 }
 
-export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
-  const { feeds, getAllCalendarItems, isLoading, removeEvent } =
-    useCalendarStore();
-  const { user: userSettings, calendar: calendarSettings } = useSettingsStore();
-  const { updateTask } = useTaskStore();
+interface CalendarDisplayEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  location?: string;
+  backgroundColor: string;
+  borderColor: string;
+  allDay: boolean;
+  classNames: string[];
+  extendedProps?: Record<string, unknown>;
+}
+
+export function WeekView({
+  currentDate,
+  onDateClick,
+  tasks,
+  tags,
+  feeds,
+  events,
+  userSettings,
+  calendarSettings,
+  getAllCalendarItems,
+  onUpdateTask,
+  onDeleteTask,
+  onCreateTag,
+  onRemoveEvent,
+}: WeekViewProps) {
   const [selectedEvent, setSelectedEvent] = useState<Partial<CalendarEvent>>();
   const [selectedTask, setSelectedTask] = useState<Task>();
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedEndDate, setSelectedEndDate] = useState<Date>();
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-  const [events, setEvents] = useState<
-    Array<{
-      id: string;
-      title: string;
-      start: Date;
-      end: Date;
-      location?: string;
-      backgroundColor: string;
-      borderColor: string;
-      allDay: boolean;
-      classNames: string[];
-      extendedProps?: ExtendedEventProps;
-    }>
-  >([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarDisplayEvent[]>(
+    []
+  );
   const calendarRef = useRef<FullCalendar>(null);
-  const tasks = useTaskStore((state) => state.tasks);
   const [quickViewItem, setQuickViewItem] = useState<CalendarEvent | Task>();
   const [quickViewPosition, setQuickViewPosition] = useState({ x: 0, y: 0 });
   const [isTask, setIsTask] = useState(false);
@@ -66,7 +85,6 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
   // Update events when the calendar view changes
   const handleDatesSet = useCallback(
     async (arg: DatesSetArg) => {
-      // Get all calendar items with current task data
       const items = getAllCalendarItems(arg.start, arg.end);
       const formattedItems = items
         .filter((item) => {
@@ -92,41 +110,21 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
           classNames: [
             item.extendedProps?.isTask ? "calendar-task" : "calendar-event",
           ],
-          // Store the original event data
           extendedProps: {
             ...item,
-            // Bring important flags to top level of extendedProps for easy access
             isTask: item.extendedProps?.isTask,
             isRecurring: item.isRecurring,
-            status: item.extendedProps?.status,
-            priority: item.extendedProps?.priority,
+            status: item.extendedProps?.status?.toString(),
+            priority: item.extendedProps?.priority?.toString(),
           },
         }));
-
-      // console.log("Setting formatted calendar items:", {
-      //   total: formattedItems.length,
-      //   tasks: formattedItems.filter((item) => item.extendedProps?.isTask)
-      //     .length,
-      //   events: formattedItems.filter((item) => !item.extendedProps?.isTask)
-      //     .length,
-      // });
-      setEvents(formattedItems);
+      setCalendarEvents(formattedItems);
     },
     [feeds, getAllCalendarItems]
   );
 
-  // Initial data load
   useEffect(() => {
-    Promise.all([
-      useCalendarStore.getState().loadFromDatabase(),
-      useTaskStore.getState().fetchTasks(),
-    ]);
-  }, []);
-
-  // Update items when loading state changes, feeds change, or tasks change
-  useEffect(() => {
-    if (!isLoading && calendarRef.current) {
-      console.log("Updating calendar items due to dependency change");
+    if (calendarRef.current) {
       const calendar = calendarRef.current.getApi();
       handleDatesSet({
         start: calendar.view.activeStart,
@@ -137,9 +135,8 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
         view: calendar.view,
       });
     }
-  }, [isLoading, feeds, userSettings.timeZone, handleDatesSet, tasks]);
+  }, [feeds, userSettings.timeZone, handleDatesSet, tasks, events]);
 
-  // Update calendar date when currentDate changes
   useEffect(() => {
     if (calendarRef.current) {
       setTimeout(() => {
@@ -155,24 +152,19 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
     const item = info.event.extendedProps;
     const itemId = info.event.id;
     const isTask = item.isTask;
-
-    // Calculate position for the quick view
     const rect = info.el.getBoundingClientRect();
     setQuickViewPosition({
       x: rect.left,
-      y: rect.bottom + 8, // Add some padding
+      y: rect.bottom + 8,
     });
-
     if (isTask) {
-      const task = useTaskStore.getState().tasks.find((t) => t.id === itemId);
+      const task = tasks.find((t) => t.id === itemId);
       if (task) {
         setQuickViewItem(task);
         setIsTask(true);
       }
     } else {
-      const event = useCalendarStore
-        .getState()
-        .events.find((e) => e.id === itemId);
+      const event = events.find((e) => e.id === itemId);
       setQuickViewItem(event as CalendarEvent);
       setIsTask(false);
     }
@@ -181,12 +173,9 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
   const handleDateSelect = (selectInfo: DateSelectArg) => {
     const start = selectInfo.start;
     const end = selectInfo.allDay ? start : selectInfo.end;
-
     setSelectedDate(start);
     setSelectedEndDate(end);
-    setSelectedEvent({
-      allDay: selectInfo.allDay,
-    });
+    setSelectedEvent({ allDay: selectInfo.allDay });
     setIsEventModalOpen(true);
   };
 
@@ -211,13 +200,10 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
 
   const handleQuickViewEdit = () => {
     if (!quickViewItem) return;
-
     if (isTask) {
-      // It's a task
       setSelectedTask(quickViewItem as Task);
       setIsTaskModalOpen(true);
     } else {
-      // It's an event
       setSelectedEvent(quickViewItem as CalendarEvent);
       setIsEventModalOpen(true);
     }
@@ -226,19 +212,16 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
 
   const handleQuickViewDelete = async () => {
     if (!quickViewItem) return;
-
     if (isTask) {
-      // It's a task
       if (confirm("Are you sure you want to delete this task?")) {
-        await useTaskStore.getState().deleteTask(quickViewItem.id);
+        await onDeleteTask((quickViewItem as Task).id);
         handleQuickViewClose();
       }
     } else {
-      // It's an event
       if (confirm("Are you sure you want to delete this event?")) {
-        await removeEvent(
-          quickViewItem.id,
-          quickViewItem.isRecurring ? "series" : "single"
+        await onRemoveEvent(
+          (quickViewItem as CalendarEvent).id,
+          (quickViewItem as CalendarEvent).isRecurring ? "series" : "single"
         );
         handleQuickViewClose();
       }
@@ -250,14 +233,9 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
     status: TaskStatus
   ) => {
     if (!quickViewItem) return;
-
-    await updateTask(taskId, { status });
-
-    // Update the quick view item to reflect the new status
+    await onUpdateTask(taskId, { status });
     if (isTask) {
-      const updatedTask = useTaskStore
-        .getState()
-        .tasks.find((t) => t.id === taskId);
+      const updatedTask = tasks.find((t) => t.id === taskId);
       if (updatedTask) {
         setQuickViewItem(updatedTask);
       }
@@ -277,7 +255,7 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
         initialView="timeGridWeek"
         headerToolbar={false}
         initialDate={currentDate}
-        events={events}
+        events={calendarEvents}
         nowIndicator={true}
         allDaySlot={true}
         slotMinTime="00:00:00"
@@ -343,20 +321,17 @@ export function WeekView({ currentDate, onDateClick }: WeekViewProps) {
         defaultDate={selectedDate || eventModalStore.defaultDate}
         defaultEndDate={selectedEndDate || eventModalStore.defaultEndDate}
       />
-
       {selectedTask && (
         <TaskModal
           isOpen={isTaskModalOpen}
           onClose={handleTaskModalClose}
           task={selectedTask}
-          tags={useTaskStore.getState().tags}
+          tags={tags}
           onSave={async (updates) => {
-            await updateTask(selectedTask.id, updates);
+            await onUpdateTask(selectedTask.id, updates);
             handleTaskModalClose();
           }}
-          onCreateTag={async (name: string, color?: string) => {
-            return useTaskStore.getState().createTag({ name, color });
-          }}
+          onCreateTag={onCreateTag}
         />
       )}
     </div>

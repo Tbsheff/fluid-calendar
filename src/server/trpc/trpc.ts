@@ -1,3 +1,5 @@
+import { decode } from "next-auth/jwt";
+
 import { TRPCError, initTRPC } from "@trpc/server";
 import { type FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import superjson from "superjson";
@@ -15,14 +17,68 @@ const LOG_SOURCE = "tRPC";
 export const createTRPCContext = async (opts: FetchCreateContextFnOptions) => {
   const { req } = opts;
 
-  // For now, we'll implement session handling later
-  // The fetch adapter doesn't directly support NextAuth session extraction
-  // We'll need to extract session from cookies or headers
-  const session = null;
-  const userId: string | undefined = undefined;
+  // Extract session from NextAuth JWT token
+  let session = null;
+  let userId: string | undefined = undefined;
 
-  // TODO: Implement proper session extraction from request headers/cookies
-  // This will be implemented when we integrate with NextAuth properly
+  try {
+    // Extract cookies from request headers
+    const cookieHeader = req.headers.get("cookie");
+    if (cookieHeader) {
+      // Parse cookies to find the session token
+      const cookies = cookieHeader.split(";").reduce(
+        (acc, cookie) => {
+          const [key, value] = cookie.trim().split("=");
+          if (key && value) {
+            acc[key] = decodeURIComponent(value);
+          }
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+
+      // Look for NextAuth session token
+      const sessionToken =
+        cookies["next-auth.session-token"] ||
+        cookies["__Secure-next-auth.session-token"];
+
+      if (sessionToken) {
+        // Decode the JWT token to get session data
+        const token = await decode({
+          token: sessionToken,
+          secret:
+            process.env.NEXTAUTH_SECRET ||
+            "EM2RYkch0Uj+Qt2Cu0eDCmo/kv0MenNnHUaciNAjSrM=",
+        });
+
+        if (token && token.sub) {
+          // Create a session-like object
+          session = {
+            user: {
+              id: token.sub,
+              email: token.email as string,
+              name: token.name as string,
+              role: token.role as string,
+            },
+            expires: new Date((token.exp as number) * 1000).toISOString(),
+          };
+          userId = token.sub;
+
+          logger.info(
+            "tRPC session extracted successfully from JWT",
+            { userId, hasSession: !!session },
+            LOG_SOURCE
+          );
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(
+      "Failed to extract session in tRPC context",
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      LOG_SOURCE
+    );
+  }
 
   return {
     req,

@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { ActionOverlay } from "@/components/ui/action-overlay";
+import { ActionOverlay, ActionType } from "@/components/ui/action-overlay";
 
-import { useFocusModeStore } from "@/store/focusMode";
+import { trpc } from "@/lib/trpc/client";
+
+import { useFocusUIStore } from "@/store/focus-ui";
+
+import { Task } from "@/types/task";
 
 import { FocusedTask } from "./FocusedTask";
 import { QuickActions } from "./QuickActions";
@@ -13,17 +17,39 @@ import { TaskQueue } from "./TaskQueue";
 export function FocusMode() {
   const [mounted, setMounted] = useState(false);
 
-  // Add hydration safety
+  // Use focus UI store for UI state
   const {
-    getCurrentTask,
+    currentTaskId,
     isProcessing,
     actionType,
     actionMessage,
     stopProcessing,
-  } = useFocusModeStore();
+  } = useFocusUIStore();
 
-  // Get current task and queued tasks - do this before any conditional returns
-  const currentTask = getCurrentTask();
+  // Get tasks data via tRPC
+  const { data: tasksData = [] } = trpc.tasks.getAll.useQuery({});
+  
+  // Cast tRPC data to Task type (tRPC returns data with string enums)
+  const tasks = tasksData as Task[];
+  
+  // Get current task from tasks data and cast to Task type
+  const currentTaskData = tasks.find(task => task.id === currentTaskId);
+  const currentTask = currentTaskData ? (currentTaskData as Task) : null;
+
+  // Map focus action types to ActionOverlay types
+  const mapActionType = (focusActionType: typeof actionType): ActionType | null => {
+    if (!focusActionType) return null;
+    
+    switch (focusActionType) {
+      case "complete":
+        return "celebration";
+      case "postpone":
+      case "delete":
+        return "loading";
+      default:
+        return "loading";
+    }
+  };
 
   // This effect will only run on the client
   useEffect(() => {
@@ -39,11 +65,13 @@ export function FocusMode() {
     );
   }
 
+  const overlayActionType = mapActionType(actionType);
+
   return (
     <div className="flex h-full flex-col">
-      {isProcessing && actionType && (
+      {isProcessing && overlayActionType && (
         <ActionOverlay
-          type={actionType}
+          type={overlayActionType}
           message={actionMessage || undefined}
           onComplete={stopProcessing}
         />

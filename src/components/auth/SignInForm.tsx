@@ -25,6 +25,28 @@ import { trpc } from "@/lib/trpc/client";
 
 const LOG_SOURCE = "SignInForm";
 
+function isTRPCZodError(
+  error: unknown
+): error is { data: { zodError: { fieldErrors: Record<string, string[]> } } } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof (error as { data?: unknown }).data === "object" &&
+    !!(error as { data: { zodError?: { fieldErrors?: unknown } } }).data
+      ?.zodError?.fieldErrors
+  );
+}
+
+function isErrorWithMessage(error: unknown): error is { message: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  );
+}
+
 export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +54,10 @@ export function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const router = useRouter();
+  const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string[] }>(
+    {}
+  );
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
   // Use tRPC to check if public signup is enabled
   const { data: publicSignupEnabled = false } =
@@ -82,6 +108,8 @@ export function SignInForm() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setFieldErrors({});
+    setGeneralError(null);
 
     try {
       await registerMutation.mutateAsync({
@@ -99,22 +127,20 @@ export function SignInForm() {
       setName("");
       setEmail("");
       setPassword("");
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(
         "Error signing up",
         { error: error instanceof Error ? error.message : "Unknown error" },
         LOG_SOURCE
       );
 
-      // Handle tRPC errors
-      if (error && typeof error === "object" && "message" in error) {
-        toast.error("Registration failed", {
-          description: error.message as string,
-        });
+      if (isTRPCZodError(error)) {
+        setFieldErrors(error.data.zodError.fieldErrors);
+        setGeneralError(null);
+      } else if (isErrorWithMessage(error)) {
+        setGeneralError(error.message);
       } else {
-        toast.error("An error occurred", {
-          description: "Please try again later.",
-        });
+        setGeneralError("An error occurred. Please try again later.");
       }
     } finally {
       setIsLoading(false);
@@ -193,6 +219,12 @@ export function SignInForm() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
+                  {fieldErrors.name &&
+                    fieldErrors.name.map((msg) => (
+                      <div className="text-red-500 text-xs" key={msg}>
+                        {msg}
+                      </div>
+                    ))}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
@@ -204,6 +236,12 @@ export function SignInForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                   />
+                  {fieldErrors.email &&
+                    fieldErrors.email.map((msg) => (
+                      <div className="text-red-500 text-xs" key={msg}>
+                        {msg}
+                      </div>
+                    ))}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
@@ -215,7 +253,18 @@ export function SignInForm() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  {fieldErrors.password &&
+                    fieldErrors.password.map((msg) => (
+                      <div className="text-red-500 text-xs" key={msg}>
+                        {msg}
+                      </div>
+                    ))}
                 </div>
+                {generalError && (
+                  <div className="text-red-500 text-xs text-center">
+                    {generalError}
+                  </div>
+                )}
                 <Button
                   type="submit"
                   className="w-full"

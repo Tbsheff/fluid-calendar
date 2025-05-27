@@ -37,9 +37,6 @@ import { format } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
 import { trpc } from "@/lib/trpc/client";
 
-import { useProjectStore } from "@/store/project";
-import { useSettingsStore } from "@/store/settings";
-
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 // Logging source
@@ -76,8 +73,22 @@ interface TaskList {
 }
 
 export function TaskSyncSettings() {
-  const { accounts } = useSettingsStore();
-  const { projects, fetchProjects: fetchProjectsFromStore } = useProjectStore();
+  // Get accounts with tRPC instead of deprecated store
+  const { data: accounts = [], isLoading: isLoadingAccounts } = trpc.accounts.getAll.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
+  // Get projects with tRPC instead of deprecated store
+  const { data: projects = [] } = trpc.projects.getAll.useQuery(
+    undefined,
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
   const utils = trpc.useUtils();
 
   // State
@@ -233,7 +244,7 @@ export function TaskSyncSettings() {
   // tRPC mutation for creating a project
   const createProjectMutation = trpc.projects.create.useMutation({
     onSuccess: () => {
-      fetchProjectsFromStore(); // Refresh projects in store
+      utils.projects.getAll.invalidate(); // Refresh projects via tRPC
     },
     onError: (error) => {
       logger.error(
@@ -244,12 +255,6 @@ export function TaskSyncSettings() {
       toast.error("Failed to create new project");
     },
   });
-
-  // Fetch providers and projects when component mounts
-  useEffect(() => {
-    // providers are fetched by useQuery automatically
-    fetchProjectsFromStore();
-  }, [fetchProjectsFromStore]);
 
   // tRPC query for fetching task lists
   const {
@@ -817,6 +822,18 @@ export function TaskSyncSettings() {
       </SettingRow>
     );
   };
+
+  // Show loading state for accounts
+  if (isLoadingAccounts) {
+    return (
+      <SettingsSection
+        title="Task Synchronization"
+        description="Manage task synchronization with external services such as Outlook or Google Tasks."
+      >
+        <div className="text-sm text-muted-foreground">Loading accounts...</div>
+      </SettingsSection>
+    );
+  }
 
   return (
     <SettingsSection

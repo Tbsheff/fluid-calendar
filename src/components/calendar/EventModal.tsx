@@ -29,8 +29,6 @@ import { formatToLocalISOString, newDate } from "@/lib/date-utils";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useSettingsStore } from "@/store/settings";
-
 import { CalendarEvent } from "@/types/calendar";
 
 interface EventModalProps {
@@ -130,7 +128,15 @@ export function EventModal({
   defaultDate,
   defaultEndDate,
 }: EventModalProps) {
-  const { calendar } = useSettingsStore();
+  // Get calendar settings via tRPC
+  const { data: calendarSettingsData } = trpc.settings.get.useQuery(
+    { type: "calendar" },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
+  const calendar = calendarSettingsData as { defaultCalendarId?: string } || {};
   const titleInputRef = useRef<HTMLInputElement>(null);
   const [showRecurrenceDialog, setShowRecurrenceDialog] = useState(false);
   const [editMode, setEditMode] = useState<"single" | "series">();
@@ -161,8 +167,14 @@ export function EventModal({
   const [recurrenceByDay, setRecurrenceByDay] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get feeds data
-  const { data: feeds = [] } = trpc.feeds.getAll.useQuery({});
+  // Get feeds data with error handling
+  const { data: feeds = [] } = trpc.feeds.getAll.useQuery(
+    {},
+    {
+      retry: false, // Don't retry on auth failures
+      refetchOnWindowFocus: false, // Don't refetch when window gains focus
+    }
+  );
 
   // tRPC mutations for event operations
   const createGoogleEventMutation =
@@ -313,8 +325,8 @@ export function EventModal({
     event,
     defaultDate,
     defaultEndDate,
-    feeds,
     calendar.defaultCalendarId,
+    // Remove feeds from dependencies to prevent infinite re-renders
   ]);
 
   // Show recurrence dialog when editing a recurring event

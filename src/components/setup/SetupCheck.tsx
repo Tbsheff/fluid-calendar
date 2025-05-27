@@ -4,9 +4,7 @@ import { useEffect, useState } from "react";
 
 import { usePathname, useRouter } from "next/navigation";
 
-import { checkSetupStatus } from "@/lib/setup-actions";
-
-import { useSetupStore } from "@/store/setup";
+import { trpc } from "@/lib/trpc/client";
 
 // How often to check the setup status (in milliseconds)
 // Default: 1 hour
@@ -16,10 +14,10 @@ export function SetupCheck() {
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
+  const [hasChecked, setHasChecked] = useState(false);
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
 
-  // Get setup state from Zustand store
-  const { hasChecked, needsSetup, lastChecked, setSetupStatus, markAsChecked } =
-    useSetupStore();
+  // We'll use tRPC utils to manually trigger the query when needed
 
   useEffect(() => {
     // Skip check if already on setup page
@@ -42,17 +40,7 @@ export function SetupCheck() {
 
     const shouldCheckSetup = () => {
       // If we've never checked before, we should check
-      if (!hasChecked || needsSetup === null) return true;
-
-      // If we know setup is needed, redirect immediately
-      if (needsSetup === true) {
-        // Add a custom header to track the redirect source
-        const setupUrl = new URL("/setup", window.location.origin);
-        // Use a special flag for tracking redirects
-        sessionStorage.setItem("redirectedFromSetupCheck", "true");
-        router.push(setupUrl.toString());
-        return false;
-      }
+      if (!hasChecked) return true;
 
       // If we've checked recently, don't check again
       if (lastChecked && Date.now() - lastChecked < CHECK_INTERVAL) {
@@ -71,11 +59,13 @@ export function SetupCheck() {
           return;
         }
 
-        // Otherwise, check the setup status
-        const data = await checkSetupStatus();
+        // Manually trigger the tRPC query
+        const utils = trpc.useUtils();
+        const data = await utils.setup.checkStatus.fetch();
 
-        // Update the store with the result
-        setSetupStatus(data.needsSetup);
+        // Update local state
+        setHasChecked(true);
+        setLastChecked(Date.now());
 
         // If setup is needed, redirect to setup page
         if (data.needsSetup) {
@@ -88,7 +78,8 @@ export function SetupCheck() {
       } catch (error) {
         console.error("Failed to check setup status:", error);
         // Mark as checked even if there was an error
-        markAsChecked();
+        setHasChecked(true);
+        setLastChecked(Date.now());
       } finally {
         setLoading(false);
       }
@@ -99,10 +90,7 @@ export function SetupCheck() {
     pathname,
     router,
     hasChecked,
-    needsSetup,
     lastChecked,
-    setSetupStatus,
-    markAsChecked,
   ]);
 
   // Show loading state or render nothing

@@ -43,7 +43,7 @@ export function ProjectsTest() {
       createProjectMutation.mutate({
         name: newProjectName.trim(),
         description: "Test project created via tRPC",
-        status: "active",
+        status: "ACTIVE",
       });
     }
   };

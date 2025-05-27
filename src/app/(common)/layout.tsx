@@ -17,7 +17,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 import { usePageTitle } from "@/hooks/use-page-title";
 
-import { useShortcutsStore } from "@/store/shortcuts";
+import { useUIStore } from "@/store/ui";
 
 import "../globals.css";
 
@@ -43,8 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const { isOpen: shortcutsOpen, setOpen: setShortcutsOpen } =
-    useShortcutsStore();
+  const { shortcutsModalOpen, setShortcutsModalOpen } = useUIStore();
 
   // Use the page title hook
   usePageTitle();
@@ -56,13 +55,13 @@ export default function RootLayout({
         setCommandPaletteOpen((open) => !open);
       } else if (e.key === "?" && !(e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setShortcutsOpen(true);
+        setShortcutsModalOpen(true);
       }
     };
 
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [setShortcutsOpen]);
+  }, [setShortcutsModalOpen]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -77,8 +76,8 @@ export default function RootLayout({
             <CommandPaletteHint />
             <CommandPaletteFab />
             <ShortcutsModal
-              isOpen={shortcutsOpen}
-              onClose={() => setShortcutsOpen(false)}
+              isOpen={shortcutsModalOpen}
+              onClose={() => setShortcutsModalOpen(false)}
             />
             <AppNav />
             <main className="relative flex-1">

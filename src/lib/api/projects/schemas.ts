@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Project status enum
-export const ProjectStatusSchema = z.enum(["active", "archived"]);
+export const ProjectStatusSchema = z.enum(["ACTIVE", "ARCHIVED"]);
 
 /**
  * Input schema for creating a project in the API layer
@@ -11,7 +11,7 @@ export const CreateProjectInputSchema = z.object({
   name: z.string().min(1, "Name is required").trim(),
   description: z.string().nullable().optional(),
   color: z.string().nullable().optional(),
-  status: ProjectStatusSchema.default("active"),
+  status: ProjectStatusSchema.default("ACTIVE"),
 });
 
 /**

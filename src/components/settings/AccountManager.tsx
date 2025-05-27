@@ -13,15 +13,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+import { CalendarProvider } from "@/lib/api/calendar/shared/types";
 import { trpc } from "@/lib/trpc/client";
-
-import { useSettingsStore } from "@/store/settings";
 
 import { AvailableCalendars } from "./AvailableCalendars";
 import { CalDAVAccountForm } from "./CalDAVAccountForm";
 
 export function AccountManager() {
-  const { accounts, refreshAccounts, removeAccount } = useSettingsStore();
+  // Use tRPC for accounts data
+  const { data: accounts = [], refetch: refreshAccounts } = trpc.accounts.getAll.useQuery();
+  const removeAccountMutation = trpc.accounts.delete.useMutation({
+    onSuccess: () => {
+      refreshAccounts();
+    },
+  });
   const [showAvailableFor, setShowAvailableFor] = useState<string | null>(null);
   const [showCalDAVForm, setShowCalDAVForm] = useState(false);
 
@@ -46,7 +51,7 @@ export function AccountManager() {
 
   const handleRemove = async (accountId: string) => {
     try {
-      await removeAccount(accountId);
+      await removeAccountMutation.mutateAsync({ accountId });
     } catch (error) {
       console.error("Failed to remove account:", error);
     }
@@ -187,7 +192,7 @@ export function AccountManager() {
                     <CardContent className="pt-6">
                       <AvailableCalendars
                         accountId={account.id}
-                        provider={account.provider}
+                        provider={account.provider as CalendarProvider}
                       />
                     </CardContent>
                   </Card>

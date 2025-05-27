@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 import AccessDeniedMessage from "@/components/auth/AccessDeniedMessage";
 import AdminOnly from "@/components/auth/AdminOnly";
@@ -16,16 +17,9 @@ import { clearResendInstance } from "@/lib/email/resend";
 import { logger } from "@/lib/logger";
 import { trpc } from "@/lib/trpc/client";
 
-import { useSettingsStore } from "@/store/settings";
-
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 const LOG_SOURCE = "SystemSettings";
-
-// Helper function to convert null to undefined
-const nullToUndefined = (value: string | null): string | undefined => {
-  return value === null ? undefined : value;
-};
 
 /**
  * System settings component
@@ -33,29 +27,20 @@ const nullToUndefined = (value: string | null): string | undefined => {
  * Only accessible by admin users
  */
 export function SystemSettings() {
-  const { system, updateSystemSettings } = useSettingsStore();
   const utils = trpc.useUtils();
 
   // Use tRPC query for system settings
-  const { data: systemSettingsData, error } =
+  const { data: systemSettingsData, error, isLoading } =
     trpc.systemSettings.get.useQuery();
 
   // Use tRPC mutation for updating system settings
   const updateSystemSettingsMutation = trpc.systemSettings.update.useMutation({
-    onSuccess: (data) => {
-      updateSystemSettings({
-        googleClientId: nullToUndefined(data.googleClientId),
-        googleClientSecret: nullToUndefined(data.googleClientSecret),
-        outlookClientId: nullToUndefined(data.outlookClientId),
-        outlookClientSecret: nullToUndefined(data.outlookClientSecret),
-        outlookTenantId: nullToUndefined(data.outlookTenantId),
-        logLevel: data.logLevel as "none" | "debug",
-        disableHomepage: data.disableHomepage,
-        resendApiKey: nullToUndefined(data.resendApiKey),
-      });
+    onSuccess: () => {
+      toast.success("System settings updated successfully");
       utils.systemSettings.get.invalidate();
     },
     onError: (error) => {
+      toast.error(`Failed to update system settings: ${error.message}`);
       logger.error(
         "Failed to update system settings",
         { error: error.message },
@@ -64,29 +49,10 @@ export function SystemSettings() {
     },
   });
 
-  // Update local state when data is loaded
-  useEffect(() => {
-    if (systemSettingsData) {
-      updateSystemSettings({
-        googleClientId: nullToUndefined(systemSettingsData.googleClientId),
-        googleClientSecret: nullToUndefined(
-          systemSettingsData.googleClientSecret
-        ),
-        outlookClientId: nullToUndefined(systemSettingsData.outlookClientId),
-        outlookClientSecret: nullToUndefined(
-          systemSettingsData.outlookClientSecret
-        ),
-        outlookTenantId: nullToUndefined(systemSettingsData.outlookTenantId),
-        logLevel: systemSettingsData.logLevel as "none" | "debug",
-        disableHomepage: systemSettingsData.disableHomepage,
-        resendApiKey: nullToUndefined(systemSettingsData.resendApiKey),
-      });
-    }
-  }, [systemSettingsData, updateSystemSettings]);
-
   // Handle loading and error states
   useEffect(() => {
     if (error) {
+      toast.error(`Failed to load system settings: ${error.message}`);
       logger.error(
         "Failed to load system settings",
         { error: error.message },
@@ -95,7 +61,8 @@ export function SystemSettings() {
     }
   }, [error]);
 
-  const handleUpdate = async (updates: Partial<typeof system>) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleUpdate = async (updates: any) => {
     try {
       await updateSystemSettingsMutation.mutateAsync(updates);
 
@@ -108,6 +75,28 @@ export function SystemSettings() {
       console.error("Update failed:", error);
     }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <AdminOnly
+        fallback={
+          <AccessDeniedMessage message="You do not have permission to access system settings." />
+        }
+      >
+        <SettingsSection
+          title="System Settings"
+          description="Configure system-wide settings for the application."
+        >
+          <div className="text-sm text-muted-foreground">Loading settings...</div>
+        </SettingsSection>
+      </AdminOnly>
+    );
+  }
+
+  // Use systemSettingsData directly instead of store
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const system = (systemSettingsData || {}) as any;
 
   return (
     <AdminOnly
@@ -245,49 +234,22 @@ export function SystemSettings() {
             </div>
 
             <div className="space-y-2">
-              <Label>Tenant ID (Optional)</Label>
+              <Label>Outlook Tenant ID</Label>
               <Input
                 type="text"
                 value={system.outlookTenantId || ""}
                 onChange={(e) =>
                   handleUpdate({ outlookTenantId: e.target.value })
                 }
-                placeholder="common"
+                placeholder="your-tenant-id"
               />
-              <p className="text-sm text-muted-foreground">
-                Leave empty to allow any Microsoft account (recommended)
-              </p>
             </div>
-          </div>
-        </SettingRow>
-
-        <SettingRow label="Homepage" description="Configure homepage behavior">
-          <div className="space-y-2">
-            <Label>Disable Homepage</Label>
-            <Select
-              value={system.disableHomepage ? "true" : "false"}
-              onValueChange={(value) =>
-                handleUpdate({ disableHomepage: value === "true" })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="false">Show Homepage</SelectItem>
-                <SelectItem value="true">Redirect to Login/Calendar</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              When enabled, the homepage (/) will redirect to the login page for
-              unauthenticated users or to the calendar for authenticated users.
-            </p>
           </div>
         </SettingRow>
 
         <SettingRow
           label="Email Service"
-          description="Configure email service settings"
+          description="Configure Resend API key for sending emails"
         >
           <div className="space-y-2">
             <Label>Resend API Key</Label>
@@ -297,10 +259,28 @@ export function SystemSettings() {
               onChange={(e) => handleUpdate({ resendApiKey: e.target.value })}
               placeholder="Enter your Resend API key"
             />
-            <p className="text-sm text-muted-foreground">
-              API key for the Resend email service. Required for sending emails.
-            </p>
           </div>
+        </SettingRow>
+
+        <SettingRow
+          label="Logging Level"
+          description="Set the minimum level for logging"
+        >
+          <Select
+            value={system.logLevel || "info"}
+            onValueChange={(value) => handleUpdate({ logLevel: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="error">Error</SelectItem>
+              <SelectItem value="warn">Warning</SelectItem>
+              <SelectItem value="info">Info</SelectItem>
+              <SelectItem value="debug">Debug</SelectItem>
+            </SelectContent>
+          </Select>
         </SettingRow>
       </SettingsSection>
     </AdminOnly>

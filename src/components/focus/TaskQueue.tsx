@@ -6,18 +6,21 @@ import { Button } from "@/components/ui/button";
 
 import { format, isBefore, newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useFocusModeStore } from "@/store/focusMode";
-import { useTaskStore } from "@/store/task";
+import { useFocusUIStore } from "@/store/focus-ui";
 
 import { Task, TaskStatus } from "@/types/task";
 
 export function TaskQueue() {
-  const { switchToTask, currentTaskId, getQueuedTasks } = useFocusModeStore();
+  const { switchToTask, currentTaskId, queuedTaskIds } = useFocusUIStore();
 
-  // Use task store for now - focus mode store migration will handle tRPC integration
-  const { tasks } = useTaskStore();
+  // Get tasks data via tRPC
+  const { data: tasksData = [] } = trpc.tasks.getAll.useQuery({});
+
+  // Cast tRPC data to Task type (tRPC returns data with string enums)
+  const tasks = tasksData as Task[];
 
   // State to track expanded sections
   const [expandedSections, setExpandedSections] = useState<{
@@ -36,18 +39,20 @@ export function TaskQueue() {
   const allTasks = tasks;
 
   // Queued tasks: get from focus mode store
-  const queuedTasks = getQueuedTasks();
+  const queuedTasks = queuedTaskIds
+    .map(id => tasks.find(task => task.id === id))
+    .filter((task): task is Task => task !== undefined);
 
   // Past due tasks: not completed, due date in the past, not postponed
   const pastDueTasks = allTasks
     .filter(
-      (task) =>
+      (task: Task) =>
         task.status !== TaskStatus.COMPLETED &&
         task.dueDate &&
         isBefore(newDate(task.dueDate), newDate()) &&
         !task.postponedUntil
     )
-    .sort((a, b) => {
+    .sort((a: Task, b: Task) => {
       // Sort by due date (oldest first)
       const dateA = a.dueDate ? newDate(a.dueDate).getTime() : 0;
       const dateB = b.dueDate ? newDate(b.dueDate).getTime() : 0;
@@ -57,12 +62,12 @@ export function TaskQueue() {
   // Postponed tasks: not completed, postponed until future
   const postponedTasks = allTasks
     .filter(
-      (task) =>
+      (task: Task) =>
         task.status !== TaskStatus.COMPLETED &&
         task.postponedUntil &&
         isBefore(newDate(), newDate(task.postponedUntil))
     )
-    .sort((a, b) => {
+    .sort((a: Task, b: Task) => {
       // Sort by postponed until date (earliest first)
       const dateA = a.postponedUntil ? newDate(a.postponedUntil).getTime() : 0;
       const dateB = b.postponedUntil ? newDate(b.postponedUntil).getTime() : 0;
@@ -71,8 +76,8 @@ export function TaskQueue() {
 
   // Recently completed tasks: completed, sorted by completion date (newest first)
   const recentlyCompletedTasks = allTasks
-    .filter((task) => task.status === TaskStatus.COMPLETED && task.completedAt)
-    .sort((a, b) => {
+    .filter((task: Task) => task.status === TaskStatus.COMPLETED && task.completedAt)
+    .sort((a: Task, b: Task) => {
       const dateA = a.completedAt ? newDate(a.completedAt).getTime() : 0;
       const dateB = b.completedAt ? newDate(b.completedAt).getTime() : 0;
       return dateB - dateA; // Descending order (newest first)
@@ -215,15 +220,6 @@ export function TaskQueue() {
           "completed",
           "bg-green-500/10 text-green-700 dark:text-green-400"
         )}
-
-        {queuedTasks.length === 0 &&
-          pastDueTasks.length === 0 &&
-          postponedTasks.length === 0 &&
-          recentlyCompletedTasks.length === 0 && (
-            <div className="py-4 text-center text-sm text-muted-foreground">
-              No tasks available
-            </div>
-          )}
       </div>
     </div>
   );

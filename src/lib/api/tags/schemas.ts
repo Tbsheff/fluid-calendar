@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { TagCreateInputSchema, TagUpdateInputSchema } from "@/lib/generated";
+import { TagSchema } from "@/lib/generated";
 
 /**
  * Input schema for creating a tag in the API layer
- * Derived from generated schema but excludes userId (provided separately)
+ * Derived from generated schema but excludes auto-generated fields
  */
-export const CreateTagInputSchema = TagCreateInputSchema.omit({
+export const CreateTagInputSchema = TagSchema.omit({
+  id: true,
   userId: true,
 }).extend({
   name: z.string().min(1, "Name is required").trim(),
@@ -15,14 +16,17 @@ export const CreateTagInputSchema = TagCreateInputSchema.omit({
 
 /**
  * Input schema for updating a tag in the API layer
- * Excludes userId (provided separately)
+ * Excludes auto-generated fields and makes all fields optional
  */
-export const UpdateTagInputSchema = TagUpdateInputSchema.omit({
+export const UpdateTagInputSchema = TagSchema.omit({
+  id: true,
   userId: true,
-}).extend({
-  name: z.string().min(1, "Name is required").trim().optional(),
-  color: z.string().nullable().optional(),
-});
+})
+  .partial()
+  .extend({
+    name: z.string().min(1, "Name is required").trim().optional(),
+    color: z.string().nullable().optional(),
+  });
 
 /**
  * Input schema for getting a tag by ID

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Removed useState - using task UI store instead
 
 import { BsKanban, BsListTask } from "react-icons/bs";
 import { toast } from "sonner";
@@ -16,9 +16,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useProjectStore } from "@/store/project";
-import { useTaskModalStore } from "@/store/taskModal";
-import { useTaskPageSettings } from "@/store/taskPageSettings";
+import { useTaskUIStore } from "@/store/task-ui";
 
 import { ProjectStatus } from "@/types/project";
 import {
@@ -31,15 +29,18 @@ import {
 } from "@/types/task";
 
 export default function TasksPage() {
-  const { fetchProjects, activeProject } = useProjectStore();
-  const { viewMode, setViewMode } = useTaskPageSettings();
-  const { isOpen, setOpen } = useTaskModalStore();
+  // Use task UI store for state management
+  const {
+    viewMode,
+    setViewMode,
+    taskModalOpen: isOpen,
+    openTaskModal,
+    closeTaskModal,
+    activeProject,
+    selectedTaskId,
+    initialProjectId,
+  } = useTaskUIStore();
   const utils = trpc.useUtils();
-
-  const [selectedTask, setSelectedTask] = useState<Task | undefined>();
-  const [initialProjectId, setInitialProjectId] = useState<
-    string | null | undefined
-  >(undefined);
 
   // tRPC queries
   const {
@@ -47,6 +48,27 @@ export default function TasksPage() {
     isLoading: tasksLoading,
     error: tasksError,
   } = trpc.tasks.getAll.useQuery({});
+
+  // Get selected task from tRPC data and convert to expected type
+  const selectedTaskRaw = tasks.find((task) => task.id === selectedTaskId);
+  const selectedTask = selectedTaskRaw ? {
+    ...selectedTaskRaw,
+    status: selectedTaskRaw.status.toLowerCase() as TaskStatus,
+    priority: selectedTaskRaw.priority?.toLowerCase() as Priority | null,
+    energyLevel: selectedTaskRaw.energyLevel?.toLowerCase() as EnergyLevel | null,
+    preferredTime: selectedTaskRaw.preferredTime?.toLowerCase() as TimePreference | null,
+    project: selectedTaskRaw.project
+      ? {
+          ...selectedTaskRaw.project,
+          status: selectedTaskRaw.project.status.toLowerCase() as ProjectStatus,
+        }
+      : null,
+    tags:
+      selectedTaskRaw.tags?.map((tag) => ({
+        ...tag,
+        color: tag.color || undefined,
+      })) || [],
+  } : undefined;
 
   const {
     data: tags = [],
@@ -118,10 +140,7 @@ export default function TasksPage() {
     },
   });
 
-  // Fetch projects on mount
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+  // Note: Projects are fetched by ProjectSidebar component
 
   const handleCreateTask = async (task: NewTask) => {
     // Convert NewTask to the format expected by tRPC
@@ -384,18 +403,16 @@ export default function TasksPage() {
               <Button
                 data-create-task-button
                 onClick={() => {
-                  setSelectedTask(undefined);
                   // Set initial project ID based on active project
                   // If viewing "No Project", set to null
                   // If viewing a specific project, set to that project's ID
                   // Otherwise, don't set an initial project (undefined)
                   const projectId = activeProject
-                    ? activeProject.id === "no-project"
+                    ? activeProject === "no-project"
                       ? null
-                      : activeProject.id
+                      : activeProject
                     : undefined;
-                  setInitialProjectId(projectId);
-                  setOpen(true);
+                  openTaskModal(undefined, projectId);
                 }}
               >
                 Create Task
@@ -415,8 +432,7 @@ export default function TasksPage() {
             <TaskList
               tasks={convertedTasks}
               onEdit={(task) => {
-                setSelectedTask(task);
-                setOpen(true);
+                openTaskModal(task.id);
               }}
               onDelete={handleDeleteTask}
               onStatusChange={handleStatusChange}
@@ -426,8 +442,7 @@ export default function TasksPage() {
             <BoardView
               tasks={convertedTasks}
               onEdit={(task) => {
-                setSelectedTask(task);
-                setOpen(true);
+                openTaskModal(task.id);
               }}
               onDelete={handleDeleteTask}
               onStatusChange={handleStatusChange}
@@ -437,11 +452,7 @@ export default function TasksPage() {
 
         <TaskModal
           isOpen={isOpen}
-          onClose={() => {
-            setOpen(false);
-            setSelectedTask(undefined);
-            setInitialProjectId(undefined);
-          }}
+          onClose={closeTaskModal}
           onSave={selectedTask ? handleUpdateTask : handleCreateTask}
           task={selectedTask}
           tags={convertedTags}

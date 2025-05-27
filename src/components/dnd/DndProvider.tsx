@@ -11,17 +11,48 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { toast } from "sonner";
 
-import { useProjectStore } from "@/store/project";
-import { useTaskStore } from "@/store/task";
+import { logger } from "@/lib/logger";
+import { trpc } from "@/lib/trpc/client";
+
+const LOG_SOURCE = "DndProvider";
 
 interface DndProviderProps {
   children: ReactNode;
 }
 
 export function DndProvider({ children }: DndProviderProps) {
-  const { updateTask } = useTaskStore();
-  const { fetchProjects } = useProjectStore();
+  const utils = trpc.useUtils();
+
+  // tRPC mutation for updating tasks
+  const updateTaskMutation = trpc.tasks.update.useMutation({
+    onSuccess: async () => {
+      // Invalidate and refetch related queries
+      await Promise.all([
+        utils.tasks.getAll.invalidate(),
+        utils.projects.getAll.invalidate(),
+      ]);
+
+      logger.info(
+        "Task project assignment updated successfully via drag and drop",
+        {},
+        LOG_SOURCE
+      );
+    },
+    onError: (error) => {
+      logger.error(
+        "Failed to update task project via drag and drop",
+        {
+          error: error.message,
+        },
+        LOG_SOURCE
+      );
+      toast.error("Failed to update task project", {
+        description: error.message,
+      });
+    },
+  });
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -51,11 +82,36 @@ export function DndProvider({ children }: DndProviderProps) {
       const projectId =
         over.id === "remove-project" ? null : (over.id as string);
 
-      // Optimistically update the task
-      await updateTask(taskId, { projectId });
+      logger.info(
+        "Drag and drop operation initiated",
+        {
+          taskId,
+          projectId: projectId || "none",
+          operation: projectId ? "assign-to-project" : "remove-from-project",
+        },
+        LOG_SOURCE
+      );
 
-      // Refetch projects to update task counts
-      fetchProjects();
+      try {
+        // Update the task with the new project assignment
+        await updateTaskMutation.mutateAsync({
+          taskId,
+          data: {
+            projectId,
+          },
+        });
+      } catch (error) {
+        // Error handling is done in the mutation onError callback
+        logger.error(
+          "Error in drag and drop operation",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            taskId,
+            projectId: projectId || "none",
+          },
+          LOG_SOURCE
+        );
+      }
     }
   };
 

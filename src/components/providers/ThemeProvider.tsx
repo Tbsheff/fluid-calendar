@@ -7,9 +7,9 @@ import React, {
   useEffect,
 } from "react";
 
-import { useSettingsStore } from "@/store/settings";
+import { trpc } from "@/lib/trpc/client";
 
-import { ThemeMode } from "@/types/settings";
+import { ThemeMode, UserSettings } from "@/types/settings";
 
 type ThemeContextType = {
   theme: ThemeMode;
@@ -39,10 +39,23 @@ export function ThemeProvider({
   forcedTheme,
   enableSystem = true,
 }: ThemeProviderProps) {
-  const { user, updateUserSettings } = useSettingsStore();
+  // Get user settings via tRPC
+  const { data: userSettings } = trpc.settings.get.useQuery(
+    { type: "user" },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
+  
+  // Update user settings mutation
+  const updateUserSettingsMutation = trpc.settings.update.useMutation();
+
+  // Cast userSettings to UserSettings type (tRPC returns union type)
+  const typedUserSettings = userSettings as UserSettings | undefined;
 
   // Use forcedTheme if provided, otherwise use user theme
-  const currentTheme = forcedTheme || user.theme;
+  const currentTheme = forcedTheme || typedUserSettings?.theme || "system";
 
   // Function to apply theme to the DOM
   const applyTheme = useCallback(
@@ -93,16 +106,16 @@ export function ThemeProvider({
     if (forcedTheme) {
       applyTheme(forcedTheme);
     } else {
-      applyTheme(user.theme);
+      applyTheme(typedUserSettings?.theme || "system");
     }
-  }, [user.theme, forcedTheme, applyTheme]);
+  }, [typedUserSettings?.theme, forcedTheme, applyTheme]);
 
   // Listen for system theme changes if system preference is enabled
   useEffect(() => {
     if (
       forcedTheme ||
       !enableSystem ||
-      (forcedTheme ? forcedTheme : user.theme) !== "system"
+      (forcedTheme ? forcedTheme : typedUserSettings?.theme) !== "system"
     )
       return;
 
@@ -114,11 +127,14 @@ export function ThemeProvider({
 
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [user.theme, forcedTheme, enableSystem, applyTheme]);
+  }, [typedUserSettings?.theme, forcedTheme, enableSystem, applyTheme]);
 
   const setTheme = (theme: ThemeMode) => {
     // Always update the user settings
-    updateUserSettings({ theme });
+    updateUserSettingsMutation.mutate({
+      type: "user",
+      data: { theme },
+    });
 
     // If forcedTheme is set, we don't apply the theme change directly
     // as the forcedTheme will override it in the UI

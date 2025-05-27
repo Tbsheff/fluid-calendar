@@ -27,7 +27,7 @@ import { format, newDate } from "@/lib/date-utils";
 import { RecurrenceConverterFactory } from "@/lib/task-sync/recurrence/recurrence-converter-factory";
 import { cn } from "@/lib/utils";
 
-import { useProjectStore } from "@/store/project";
+import { trpc } from "@/lib/trpc/client";
 
 import {
   EnergyLevel,
@@ -88,7 +88,8 @@ export function TaskModal({
   onCreateTag,
   initialProjectId,
 }: TaskModalProps) {
-  const { projects } = useProjectStore();
+  // Get projects with tRPC instead of deprecated store
+  const { data: projects = [] } = trpc.projects.getAll.useQuery();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
@@ -447,7 +448,7 @@ export function TaskModal({
               <SelectContent>
                 <SelectItem value="none">No Project</SelectItem>
                 {projects
-                  .filter((p) => p.status === "active")
+                  .filter((p) => p.status === "ACTIVE")
                   .map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}

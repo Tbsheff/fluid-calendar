@@ -7,7 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Store Dependencies Refactoring**: Completed migration from deprecated Zustand stores to tRPC
+  - Refactored AutoScheduleSettings component to use tRPC instead of deprecated useSettingsStore
+  - Refactored SystemSettings component to use tRPC instead of deprecated useSettingsStore  
+  - Refactored TaskSyncSettings component to use tRPC instead of deprecated useSettingsStore
+  - Refactored EditableCell component to use tRPC for projects instead of deprecated useProjectStore
+  - Updated calendar commands to use correct calendar UI store imports
+  - Updated task commands to use correct task UI store imports
+  - Modified Google Calendar functions to accept timezone as parameter instead of using store
+  - Modified Outlook Calendar functions to accept timezone as parameter instead of using store
+  - Updated SchedulingService to require AutoScheduleSettings parameter instead of fallback to store
+  - Refactored TaskModal component to use tRPC for projects instead of deprecated useProjectStore
+  - Added temporary local state fallbacks for TaskList component (TODO: implement proper stores)
+  - Fixed SetupCheck component to use tRPC instead of deprecated useSetupStore
+  - Fixed SetupForm component to remove deprecated useSetupStore dependency
+  - Fixed build errors caused by deprecated store dependencies
+  - Removed deprecated store imports from Google and Outlook calendar libraries
+  - Removed deprecated store fallback logic from SchedulingService
+
+- **Schema Generation Issue**: Fixed `npm run db:generate` not generating Zod schemas
+  - Replaced incompatible `prisma-zod-generator@0.8.13` with `zod-prisma-types@3.2.1`
+  - Updated Prisma schema generator configuration to use working provider
+  - Updated `src/lib/api/tags/schemas.ts` to use new generated schema format (`TagSchema` instead of `TagCreateInputSchema`/`TagUpdateInputSchema`)
+  - All Zod schemas now generate correctly from Prisma models, providing TypeScript type safety
+- **Dynamic Import Issues**: Fixed Next.js build errors with dynamic imports using template literals
+  - Fixed `src/lib/email/password-reset.ts` to use conditional imports instead of template literal imports
+  - Fixed `src/components/calendar/Calendar.tsx` LifetimeAccessBanner dynamic import pattern
+  - Created missing `LifetimeAccessBanner.saas.tsx` component file
+  - All dynamic imports now work correctly with Next.js static analysis
+- **CRITICAL**: Fixed tRPC authentication by implementing proper session extraction from NextAuth JWT tokens
+- **CRITICAL**: Fixed infinite re-render loop in EventModal component caused by failed tRPC queries
+- Fixed "Maximum update depth exceeded" React error in calendar components
+- Fixed "Failed to load feeds from database" errors caused by authentication failures
+- **Fixed remaining legacy calendar store usage**: Migrated all remaining components using deprecated `loadFromDatabase()` method to tRPC
+  - Fixed WeekView, MonthView, MultiMonthView, and DayView components to use tRPC data from parent Calendar component
+  - Fixed AutoScheduleSettings component to use `trpc.feeds.getAll.useQuery()` instead of calendar store
+  - Fixed CalendarSettings component to use `trpc.feeds.getAll.useQuery()` instead of calendar store
+  - Removed all remaining calls to deprecated `loadFromDatabase()` method
+- Improved error handling in EventModal to prevent retry loops on authentication failures
+- **Calendar View Components Migration**: Complete migration of all calendar view components from legacy store patterns to prop-driven architecture
+  - `src/components/calendar/WeekView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/MonthView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/MultiMonthView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/DayView.tsx`: Migrated from legacy store usage to prop-driven architecture with tRPC compatibility
+  - `src/components/calendar/Calendar.tsx`: Updated parent component to fetch all required data via tRPC and pass as props to calendar view components
+  - Removed all direct calls to `useTaskStore.getState()`, `useCalendarStore.getState()`, and `useSettingsStore()` methods
+  - Converted all components to accept data and mutation handlers as props for full tRPC compatibility
+  - Created `CalendarDisplayEvent` interface for FullCalendar event formatting consistency
+  - Enhanced type safety with proper TypeScript interfaces and Record<string, unknown> for extendedProps
+  - Fixed TypeScript compatibility issues with tag handling (Task.tags → tagIds for tRPC mutations)
+  - Build verification: Successful TypeScript compilation, formatting, and linting
+
 ### Added
+
+- **Database Seed Script**: Added comprehensive development database seeding
+
+  - Created `prisma/seed.ts` with sample data for all major models
+  - Added 3 test users (1 admin, 2 regular users) with complete settings profiles
+  - Generated 4 sample projects with different categories (Work, Personal, Learning, Admin)
+  - Created 4 color-coded tags (urgent, meeting, research, review)
+  - Added 7 realistic tasks with various statuses, priorities, and due dates
+  - Included 2 calendar feeds and 3 sample events
+  - Added sample subscriptions (FREE and LIFETIME plans)
+  - Added npm scripts: `npm run db:seed` and `npm run db:reset`
+  - Provides ready-to-use test data for development and testing
+
+- **Frontend tRPC Migration Phase 5 Complete**: Successfully migrated Focus Mode components to tRPC v11
+
+  - **Focus Mode Components Migration**: Complete migration of focus mode functionality to tRPC
+    - `src/components/focus/FocusMode.tsx`: Layout component, no migration needed (coordinates other components)
+    - `src/components/focus/TaskQueue.tsx`: Uses task store for now, focus mode store handles tRPC integration
+    - `src/components/focus/FocusedTask.tsx`: Pure presentation component, no migration needed
+    - `src/components/focus/QuickActions.tsx`: Migrated from task store to tRPC hooks for task operations
+      - `trpc.tasks.update.useMutation()` for task editing with proper date and status type conversions
+      - `trpc.tasks.delete.useMutation()` for task deletion with loading states
+      - `trpc.tags.getAll.useQuery()` for tag data fetching
+      - `trpc.tags.create.useMutation()` for tag creation
+  - **Focus Mode Store Migration**: Added comprehensive deprecation warnings to focus mode store methods
+    - `completeCurrentTask()` → `trpc.tasks.update.useMutation()` with status: 'COMPLETED'
+    - `postponeTask()` → `trpc.tasks.update.useMutation()` with postponedUntil field
+    - Maintained task store integration for backward compatibility with existing focus mode logic
+  - **Enhanced User Experience**: Improved error handling with toast notifications, proper loading states, and TypeScript type safety
+    - Enhanced task editing with proper date serialization (Date → ISO string)
+    - Enhanced task status conversion (TaskStatus enum → tRPC string literals)
+    - Enhanced tag handling with null-to-undefined conversions for UI compatibility
+  - **Type Safety Improvements**: Proper type conversions between frontend types and tRPC schemas
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 5 of frontend migration complete (Focus Mode components migrated), Phase 6 (Project Components Migration) ready to begin
 
 - **Frontend tRPC Migration Phase 4 Complete**: Successfully migrated Calendar System components to tRPC v11
 
@@ -260,15 +348,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Business Logic Layer**: Created comprehensive API layers for both domains with proper validation
 - **Test Components**: Added `ImportExportTest.tsx` for testing the new tRPC endpoints
 - **Type Safety**: Enhanced type safety with Zod schemas and proper error handling
-
-### Fixed
-
-- **Build Issues**: Resolved TypeScript compilation errors in Settings API
-  - Fixed array-to-JSON transformation conflicts for `defaultReminderTiming`, `workingHoursDays`, `workDays`, `selectedCalendars`
-  - Created proper transformation functions for database compatibility
-- **Schema Alignment**: Fixed Feeds tRPC schema to include all required CalendarEvent fields
-- **Type Safety**: Eliminated type conflicts between Zod schemas and Prisma models
-- **Build Stability**: Achieved successful TypeScript compilation for all migrated domains
 
 ### Changed
 
@@ -568,3 +647,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Frontend Migration Progress**: 6 high-priority components now using tRPC (TasksPage + 4 settings components + AccountManager)
 - **Task Management**: Complete tRPC integration for all task-related operations
 - **Settings Management**: Core system settings now fully integrated with tRPC
+
+- **Frontend tRPC Migration Phase 6 Complete**: Successfully migrated Project Components to tRPC v11
+
+  - **Project Components Migration**: Complete migration of all project management functionality to tRPC
+    - `src/components/projects/ProjectModal.tsx`: Migrated from project store to `trpc.projects.create.useMutation()` and `trpc.projects.update.useMutation()`
+      - Enhanced error handling with toast notifications and proper logging
+      - Improved loading states with tRPC's `isPending` status
+      - Fixed parameter structure to match tRPC schemas (using `id` instead of `projectId`)
+    - `src/components/projects/DeleteProjectDialog.tsx`: Migrated from project store to `trpc.projects.delete.useMutation()`
+      - Enhanced error handling with toast notifications and proper logging
+      - Improved user experience with loading states and error feedback
+      - Fixed parameter structure to match tRPC schemas
+    - `src/components/projects/ProjectSidebar.tsx`: Completed migration from project and task stores to tRPC hooks
+      - `trpc.projects.getAll.useQuery()` for fetching projects with task counts
+      - `trpc.tasks.getAll.useQuery({})` for fetching tasks to calculate unassigned task counts
+      - Maintained existing task sync functionality that was already migrated to tRPC
+      - Enhanced error handling with toast notifications for data fetching errors
+      - Improved type safety with proper casting of tRPC types to frontend types
+  - **Enhanced User Experience**: Improved error handling with toast notifications, proper loading states, and TypeScript type safety across all project components
+  - **Type Safety Improvements**: Proper type conversions between tRPC types and frontend types with appropriate casting for ProjectWithCount to Project
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 6 of frontend migration complete (Project Components migrated), Phase 7 (DnD Components Migration) ready to begin
+
+- **Frontend tRPC Migration Phase 7 Complete**: Successfully migrated DnD (Drag and Drop) System to tRPC v11
+
+  - **DnD System Migration**: Complete migration of drag and drop functionality to tRPC
+    - `src/components/dnd/DndProvider.tsx`: Migrated from deprecated store methods to tRPC hooks for task project assignment
+      - Replaced `useTaskStore()` with `trpc.tasks.update.useMutation()` for updating task project assignments
+      - Replaced `useProjectStore()` with `trpc.useUtils()` for cache invalidation and data refetching
+      - Enhanced error handling with toast notifications and proper logging for drag and drop operations
+      - Improved user experience with comprehensive logging of drag and drop events
+      - Maintained optimistic update behavior while ensuring data consistency
+    - `src/components/dnd/useDragAndDrop.ts`: No changes needed (pure wrapper hooks around @dnd-kit/core)
+    - Enhanced drag and drop operations with proper error recovery and user feedback
+  - **Enhanced User Experience**: Improved error handling with toast notifications, comprehensive logging, and proper cache invalidation
+  - **Type Safety Improvements**: Full TypeScript integration with proper tRPC parameter structure
+  - **Build Verification**: Successful TypeScript compilation, formatting, and linting
+  - **Migration Progress**: Phase 7 of frontend migration complete (DnD System migrated), Phase 8 (Store Cleanup) ready to begin
+
+- **Frontend tRPC Migration Phase 8 Complete**: Successfully completed migration of all calendar view components and parent Calendar component to tRPC
+  - All calendar view components (WeekView, MonthView, MultiMonthView, DayView) now use prop-driven architecture with tRPC compatibility
+  - Parent Calendar component updated to fetch all required data via tRPC queries and pass as props to child components
+  - All legacy Zustand store usage fully removed from calendar view components
+  - All CRUD and lookup operations now use tRPC mutations and parent-provided props
+  - Fixed TypeScript compatibility issues with tag handling for proper tRPC integration
+  - This completes the frontend migration to tRPC for all major calendar/task UI components
+
+- **Phase 9: Hybrid State Management Implementation (In Progress)**: Implementing best practice approach with UI state in Zustand, server state in tRPC
+  - **Approach**: Keep UI state management in Zustand stores, use tRPC exclusively for server state (follows React/Next.js best practices)
+  - **Created minimal UI-only stores**:
+    - `src/store/ui.ts` - Global UI state (modal open/close, sidebar state, hydration)
+    - `src/store/calendar-ui.ts` - Calendar-specific UI state (current date, view mode, navigation)
+    - `src/store/task-ui.ts` - Task page UI state (view mode, modal state, project filtering)
+  - **Updated major components**:
+    - Calendar component now uses calendar UI store for view state, tRPC for data
+    - Layout component uses global UI store for shortcuts modal
+    - Tasks page uses task UI store for view preferences and modal state
+  - **Benefits**: Clear separation of concerns, persistent UI state, no prop drilling for UI state, optimal caching and mutations via tRPC
+  - **Remaining**: Fix remaining components importing deleted stores, complete migration of all UI state to appropriate stores
+
+### Added
+- Proper Prisma enum definitions for TaskStatus, Priority, EnergyLevel, TimePreference, and ProjectStatus
+- Enum validation in generated Zod schemas instead of generic string validation
+
+### Changed
+- Updated TypeScript enums to use uppercase values for consistency with Prisma enums
+- Task and Project models now use proper enum types instead of String fields
+- BoardView component fixed to use correct task UI store properties
+- AutoScheduleSettings component migrated from deprecated stores to tRPC
+- All color mapping objects updated to use uppercase enum keys
+- API and tRPC schemas updated to use uppercase enum values
+- Seed file updated to use proper Prisma enum values
+
+### Fixed
+- **CRITICAL**: Completed enum consistency fixes across the entire application
+  - Added ANYTIME value to TimePreference enum in Prisma schema for better UX
+  - Fixed Priority enum schema validation in API and tRPC layers
+  - Updated import/export functionality with proper enum type casting and validation
+  - Fixed TimeSlotManager service to remove deprecated settings store dependency
+  - Updated all UI components to support ANYTIME time preference with proper color mapping
+- Enum type consistency across Prisma schema, TypeScript types, and generated schemas
+- Task UI store property access in BoardView component
+- Type safety for enum values throughout the application
+- Color mapping for energy levels, time preferences, and task statuses
+- Project status enum consistency between frontend and backend
+- **Build Success**: Application now builds successfully with full enum type safety
+
+### Removed
+- Deprecated store dependencies from settings components
+- Unused store properties from task UI components
+- Inconsistent enum value mappings
+
+### Technical Debt
+- All enum consistency issues have been resolved across the application

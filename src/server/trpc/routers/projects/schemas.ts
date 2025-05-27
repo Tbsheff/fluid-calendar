@@ -6,7 +6,7 @@ import { z } from "zod";
  */
 
 // Project status enum
-export const ProjectStatusSchema = z.enum(["active", "archived"]);
+export const ProjectStatusSchema = z.enum(["ACTIVE", "ARCHIVED"]);
 
 export const GetAllProjectsInputSchema = z
   .object({
@@ -24,7 +24,7 @@ export const CreateProjectInputSchema = z.object({
   name: z.string().min(1, "Name is required").trim(),
   description: z.string().nullable().optional(),
   color: z.string().nullable().optional(),
-  status: ProjectStatusSchema.default("active"),
+  status: ProjectStatusSchema.default("ACTIVE"),
 });
 
 export const UpdateProjectInputSchema = z.object({

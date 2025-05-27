@@ -4,7 +4,7 @@ import { Frequency, RRule } from "rrule";
 
 import { logger } from "@/lib/logger";
 
-import { useSettingsStore } from "@/store/settings";
+// Removed deprecated store import - timezone should be passed as parameter
 
 import { createOutlookAllDayDate, newDate, newDateFromYMD } from "./date-utils";
 import { MSGraphCalendar, MSGraphUser } from "./outlook";
@@ -406,10 +406,10 @@ export async function createOutlookEvent(
     allDay?: boolean;
     isRecurring?: boolean;
     recurrenceRule?: string;
-  }
+  },
+  timeZone: string = "UTC"
 ) {
   const client = await getOutlookClient(accountId, userId);
-  const timeZone = useSettingsStore.getState().user.timeZone;
 
   // Convert RRule to Outlook recurrence pattern if present
   let recurrence;
@@ -578,10 +578,10 @@ export async function updateOutlookEvent(
     isRecurring?: boolean;
     recurrenceRule?: string;
     mode?: "single" | "series";
-  }
+  },
+  timeZone: string = "UTC"
 ) {
   const client = await getOutlookClient(accountId, userId);
-  const timeZone = useSettingsStore.getState().user.timeZone;
 
   try {
     // Get the event to check if it's part of a series

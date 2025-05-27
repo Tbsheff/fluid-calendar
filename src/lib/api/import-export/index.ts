@@ -1,4 +1,4 @@
-import { Project, Tag, Task } from "@prisma/client";
+import { Project, Tag, Task, TaskStatus, Priority, EnergyLevel, TimePreference, ProjectStatus } from "@prisma/client";
 
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +17,69 @@ type TaskWithRelations = Task & {
   tags: Tag[];
   project: Project | null;
 };
+
+// Helper functions to validate and cast enum values
+function validateProjectStatus(status: string | undefined): ProjectStatus {
+  if (!status) return ProjectStatus.ACTIVE;
+  if (Object.values(ProjectStatus).includes(status as ProjectStatus)) {
+    return status as ProjectStatus;
+  }
+  // Map legacy values to new enum values
+  if (status.toLowerCase() === "active") return ProjectStatus.ACTIVE;
+  if (status.toLowerCase() === "archived") return ProjectStatus.ARCHIVED;
+  return ProjectStatus.ACTIVE; // Default fallback
+}
+
+function validateTaskStatus(status: string | undefined): TaskStatus {
+  if (!status) return TaskStatus.TODO;
+  if (Object.values(TaskStatus).includes(status as TaskStatus)) {
+    return status as TaskStatus;
+  }
+  // Map legacy values to new enum values
+  if (status.toLowerCase() === "todo") return TaskStatus.TODO;
+  if (status.toLowerCase() === "in_progress") return TaskStatus.IN_PROGRESS;
+  if (status.toLowerCase() === "completed") return TaskStatus.COMPLETED;
+  if (status.toLowerCase() === "cancelled") return TaskStatus.CANCELLED;
+  return TaskStatus.TODO; // Default fallback
+}
+
+function validatePriority(priority: string | undefined | null): Priority | null {
+  if (!priority) return null;
+  if (Object.values(Priority).includes(priority as Priority)) {
+    return priority as Priority;
+  }
+  // Map legacy values to new enum values
+  if (priority.toLowerCase() === "high") return Priority.HIGH;
+  if (priority.toLowerCase() === "medium") return Priority.MEDIUM;
+  if (priority.toLowerCase() === "low") return Priority.LOW;
+  if (priority.toLowerCase() === "none") return Priority.NONE;
+  return null; // Default fallback
+}
+
+function validateEnergyLevel(energyLevel: string | undefined | null): EnergyLevel | null {
+  if (!energyLevel) return null;
+  if (Object.values(EnergyLevel).includes(energyLevel as EnergyLevel)) {
+    return energyLevel as EnergyLevel;
+  }
+  // Map legacy values to new enum values
+  if (energyLevel.toLowerCase() === "high") return EnergyLevel.HIGH;
+  if (energyLevel.toLowerCase() === "medium") return EnergyLevel.MEDIUM;
+  if (energyLevel.toLowerCase() === "low") return EnergyLevel.LOW;
+  return null; // Default fallback
+}
+
+function validateTimePreference(timePreference: string | undefined | null): TimePreference | null {
+  if (!timePreference) return null;
+  if (Object.values(TimePreference).includes(timePreference as TimePreference)) {
+    return timePreference as TimePreference;
+  }
+  // Map legacy values to new enum values
+  if (timePreference.toLowerCase() === "morning") return TimePreference.MORNING;
+  if (timePreference.toLowerCase() === "afternoon") return TimePreference.AFTERNOON;
+  if (timePreference.toLowerCase() === "evening") return TimePreference.EVENING;
+  if (timePreference.toLowerCase() === "anytime") return TimePreference.ANYTIME;
+  return null; // Default fallback
+}
 
 // Export data structure
 export type ExportData = {
@@ -56,7 +119,7 @@ export async function exportTasks(
     where: {
       userId,
       // Filter out completed tasks if includeCompleted is false
-      ...(includeCompleted ? {} : { status: { not: "completed" } }),
+      ...(includeCompleted ? {} : { status: { not: "COMPLETED" } }),
     },
     include: {
       tags: true,
@@ -184,7 +247,7 @@ export async function importTasks(
               name: project.name,
               description: project.description,
               color: project.color,
-              status: project.status || "active",
+              status: validateProjectStatus(project.status),
               userId,
             },
           });
@@ -213,12 +276,12 @@ export async function importTasks(
         const taskData = {
           title: task.title,
           description: task.description,
-          status: task.status,
+          status: validateTaskStatus(task.status),
           dueDate: task.dueDate ? new Date(task.dueDate) : null,
           duration: task.duration,
-          priority: task.priority,
-          energyLevel: task.energyLevel,
-          preferredTime: task.preferredTime,
+          priority: validatePriority(task.priority),
+          energyLevel: validateEnergyLevel(task.energyLevel),
+          preferredTime: validateTimePreference(task.preferredTime),
           isAutoScheduled: task.isAutoScheduled || false,
           scheduleLocked: task.scheduleLocked || false,
           scheduledStart: task.scheduledStart

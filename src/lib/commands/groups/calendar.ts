@@ -9,7 +9,7 @@ import { create } from "zustand";
 
 import { addDays, newDate, subDays } from "@/lib/date-utils";
 
-import { useCalendarUIStore, useViewStore } from "@/store/calendar";
+import { useCalendarUIStore } from "@/store/calendar-ui";
 
 import { Command } from "../types";
 
@@ -33,8 +33,7 @@ export const useEventModalStore = create<EventModalStore>((set) => ({
 }));
 
 export function useCalendarCommands(): Command[] {
-  const { date: currentDate, setDate } = useViewStore();
-  const { isSidebarOpen, setSidebarOpen } = useCalendarUIStore();
+  const { currentDate, setDate, sidebarOpen, setSidebarOpen } = useCalendarUIStore();
 
   const calendarContext = {
     requiredPath: "/calendar",
@@ -84,7 +83,7 @@ export function useCalendarCommands(): Command[] {
       keywords: ["calendar", "sidebar", "toggle", "show", "hide"],
       icon: HiOutlineMenu,
       section: "calendar",
-      perform: () => setSidebarOpen(!isSidebarOpen),
+      perform: () => setSidebarOpen(!sidebarOpen),
       shortcut: "b",
       context: calendarContext,
     },

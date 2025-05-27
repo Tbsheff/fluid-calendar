@@ -24,7 +24,7 @@ import {
   newDateFromYMD,
 } from "@/lib/date-utils";
 
-import { useProjectStore } from "@/store/project";
+import { trpc } from "@/lib/trpc/client";
 
 import { EnergyLevel, Priority, Task, TimePreference } from "@/types/task";
 
@@ -52,7 +52,8 @@ export function EditableCell({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const editRef = useRef<HTMLDivElement>(null);
-  const { projects } = useProjectStore();
+  // Get projects with tRPC instead of deprecated store
+  const { data: projects = [] } = trpc.projects.getAll.useQuery();
 
   useEffect(() => {
     setEditValue(value);
@@ -455,7 +456,7 @@ export function EditableCell({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">No project</SelectItem>
-            {projects.map((project) => (
+            {projects.map((project: { id: string; name: string; color?: string | null }) => (
               <SelectItem key={project.id} value={project.id}>
                 <div className="flex items-center gap-2">
                   <div

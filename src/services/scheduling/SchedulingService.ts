@@ -4,7 +4,7 @@ import { addDays, newDate } from "@/lib/date-utils";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
-import { useSettingsStore } from "@/store/settings";
+// Removed deprecated store import - settings should be passed as parameter
 
 import { CalendarServiceImpl } from "./CalendarServiceImpl";
 import { TimeSlotManager, TimeSlotManagerImpl } from "./TimeSlotManager";
@@ -27,9 +27,9 @@ export class SchedulingService {
   private settings: AutoScheduleSettings | null;
   private metrics: PerformanceMetrics[] = [];
 
-  constructor(settings?: AutoScheduleSettings) {
+  constructor(settings: AutoScheduleSettings) {
     this.calendarService = new CalendarServiceImpl();
-    this.settings = settings || null;
+    this.settings = settings;
   }
 
   private startMetric(
@@ -88,23 +88,11 @@ export class SchedulingService {
   private getTimeSlotManager(): TimeSlotManagerImpl {
     const startTime = this.startMetric("getTimeSlotManager");
 
-    let settings: AutoScheduleSettings;
-
-    if (this.settings) {
-      settings = this.settings;
-    } else {
-      // Fallback to store settings if none provided (for backward compatibility)
-      const storeSettings = useSettingsStore.getState().autoSchedule;
-      settings = {
-        ...storeSettings,
-        id: "store",
-        userId: "store",
-        createdAt: newDate(),
-        updatedAt: newDate(),
-      };
+    if (!this.settings) {
+      throw new Error("AutoScheduleSettings must be provided to SchedulingService");
     }
 
-    const manager = new TimeSlotManagerImpl(settings, this.calendarService);
+    const manager = new TimeSlotManagerImpl(this.settings, this.calendarService);
 
     this.endMetric("getTimeSlotManager", startTime);
     return manager;

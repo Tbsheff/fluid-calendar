@@ -4,8 +4,7 @@ import { useMemo } from "react";
 
 import { DndContext, DragEndEvent } from "@dnd-kit/core";
 
-import { useProjectStore } from "@/store/project";
-import { useTaskListViewSettings } from "@/store/taskListViewSettings";
+import { useTaskUIStore } from "@/store/task-ui";
 
 import { Task, TaskStatus } from "@/types/task";
 
@@ -24,57 +23,20 @@ export function BoardView({
   onDelete,
   onStatusChange,
 }: BoardViewProps) {
-  const { activeProject } = useProjectStore();
-  const { energyLevel, timePreference, tagIds, search } =
-    useTaskListViewSettings();
+  const { activeProject } = useTaskUIStore();
 
-  // First, filter by project
-  const projectFilteredTasks = activeProject
-    ? activeProject.id === "no-project"
-      ? tasks.filter((task) => !task.projectId)
-      : tasks.filter((task) => task.projectId === activeProject.id)
-    : tasks;
-
-  // Then apply other filters
+  // Filter by project - activeProject is a string (project ID) or null
   const filteredTasks = useMemo(() => {
-    return projectFilteredTasks.filter((task) => {
-      // Energy level filter
-      if (
-        energyLevel?.length &&
-        (!task.energyLevel || !energyLevel.includes(task.energyLevel))
-      ) {
-        return false;
-      }
-
-      // Time preference filter
-      if (
-        timePreference?.length &&
-        (!task.preferredTime || !timePreference.includes(task.preferredTime))
-      ) {
-        return false;
-      }
-
-      // Tags filter
-      if (tagIds?.length) {
-        const taskTagIds = task.tags.map((t) => t.id);
-        if (!tagIds.some((id) => taskTagIds.includes(id))) {
-          return false;
-        }
-      }
-
-      // Search
-      if (search) {
-        const searchLower = search.toLowerCase();
-        return (
-          task.title.toLowerCase().includes(searchLower) ||
-          task.description?.toLowerCase().includes(searchLower) ||
-          task.tags.some((tag) => tag.name.toLowerCase().includes(searchLower))
-        );
-      }
-
-      return true;
-    });
-  }, [projectFilteredTasks, energyLevel, timePreference, tagIds, search]);
+    if (!activeProject) {
+      return tasks; // Show all tasks if no project filter
+    }
+    
+    if (activeProject === "no-project") {
+      return tasks.filter((task) => !task.projectId);
+    }
+    
+    return tasks.filter((task) => task.projectId === activeProject);
+  }, [tasks, activeProject]);
 
   // Group tasks by status
   const columns = useMemo(() => {

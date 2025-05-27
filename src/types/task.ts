@@ -3,28 +3,30 @@ import { ChangeType } from "@/lib/task-sync/task-change-tracker";
 import { Project } from "./project";
 
 export enum TaskStatus {
-  TODO = "todo",
-  IN_PROGRESS = "in_progress",
-  COMPLETED = "completed",
+  TODO = "TODO",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
 }
 
 export enum EnergyLevel {
-  HIGH = "high",
-  MEDIUM = "medium",
-  LOW = "low",
+  HIGH = "HIGH",
+  MEDIUM = "MEDIUM",
+  LOW = "LOW",
 }
 
 export enum Priority {
-  HIGH = "high",
-  MEDIUM = "medium",
-  LOW = "low",
-  NONE = "none",
+  HIGH = "HIGH",
+  MEDIUM = "MEDIUM",
+  LOW = "LOW",
+  NONE = "NONE",
 }
 
 export enum TimePreference {
-  MORNING = "morning",
-  AFTERNOON = "afternoon",
-  EVENING = "evening",
+  MORNING = "MORNING",
+  AFTERNOON = "AFTERNOON",
+  EVENING = "EVENING",
+  ANYTIME = "ANYTIME",
 }
 
 export interface Tag {

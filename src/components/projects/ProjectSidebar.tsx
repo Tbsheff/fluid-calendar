@@ -14,8 +14,7 @@ import { logger } from "@/lib/logger";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
-import { useProjectStore } from "@/store/project";
-import { useTaskStore } from "@/store/task";
+import { useTaskUIStore } from "@/store/task-ui";
 
 import { Project, ProjectStatus } from "@/types/project";
 import { TaskStatus } from "@/types/task";
@@ -25,12 +24,6 @@ import { ProjectModal } from "./ProjectModal";
 
 // Logging source
 const LOG_SOURCE = "ProjectSidebar";
-
-// Special project object to represent "no project" state
-const NO_PROJECT: Partial<Project> = {
-  id: "no-project",
-  name: "No Project",
-};
 
 // Interface for task list mappings
 interface TaskListMapping {
@@ -42,15 +35,21 @@ interface TaskListMapping {
 }
 
 export function ProjectSidebar() {
+  // Use tRPC for data fetching
   const {
-    projects,
-    loading,
-    error,
-    fetchProjects,
-    setActiveProject,
-    activeProject,
-  } = useProjectStore();
-  const { tasks } = useTaskStore();
+    data: projects = [],
+    isLoading: projectsLoading,
+    error: projectsError,
+  } = trpc.projects.getAll.useQuery();
+  const {
+    data: tasks = [],
+    isLoading: tasksLoading,
+    error: tasksError,
+  } = trpc.tasks.getAll.useQuery({});
+
+  // Keep active project state in store for UI state management
+  const { setActiveProject, activeProject } = useTaskUIStore();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | undefined>();
   const [projectMappings, setProjectMappings] = useState<
@@ -81,8 +80,6 @@ export function ProjectSidebar() {
       if (isSaasEnabled) {
         toast.success("Task sync initiated for project");
       } else {
-        const { fetchTasks } = useTaskStore.getState();
-        fetchTasks();
         toast.success("Sync Completed");
       }
     },
@@ -96,9 +93,28 @@ export function ProjectSidebar() {
     },
   });
 
+  // Handle errors
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    if (projectsError) {
+      logger.error(
+        "Failed to fetch projects via tRPC",
+        { error: projectsError.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to load projects");
+    }
+  }, [projectsError]);
+
+  useEffect(() => {
+    if (tasksError) {
+      logger.error(
+        "Failed to fetch tasks via tRPC",
+        { error: tasksError.message },
+        LOG_SOURCE
+      );
+      toast.error("Failed to load tasks");
+    }
+  }, [tasksError]);
 
   // Process mappings data when it changes
   useEffect(() => {
@@ -176,6 +192,9 @@ export function ProjectSidebar() {
     setIsModalOpen(true);
   };
 
+  const loading = projectsLoading || tasksLoading;
+  const error = projectsError || tasksError;
+
   return (
     <>
       <div className="flex h-full w-64 flex-col border-r bg-background">
@@ -198,93 +217,101 @@ export function ProjectSidebar() {
               className="w-full justify-start"
               onClick={() => setActiveProject(null)}
             >
-              All Tasks
-            </Button>
-            <Button
-              variant={
-                activeProject?.id === NO_PROJECT.id ? "secondary" : "ghost"
-              }
-              className="w-full justify-start gap-2"
-              onClick={() => setActiveProject(NO_PROJECT as Project)}
-            >
-              <HiFolderOpen className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1">No Project</span>
-              <span className="text-xs text-muted-foreground">
-                {unassignedTasksCount}
-              </span>
+              <HiFolderOpen className="mr-2 h-4 w-4" />
+              <span className="truncate">No Project</span>
+              {unassignedTasksCount > 0 && (
+                <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs">
+                  {unassignedTasksCount}
+                </span>
+              )}
             </Button>
           </div>
         </div>
 
-        <ScrollArea className="flex-1 p-4">
-          {loading ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-sm text-muted-foreground">
+        <ScrollArea className="flex-1">
+          <div className="p-4">
+            {loading && (
+              <div className="text-center text-sm text-muted-foreground">
                 Loading projects...
               </div>
-            </div>
-          ) : error ? (
-            <div className="p-2 text-sm text-destructive">{error.message}</div>
-          ) : (
-            <div className="space-y-4">
-              {activeProjects.length > 0 && (
-                <div className="space-y-1">
-                  {activeProjects.map((project) => (
-                    <ProjectItem
-                      key={project.id}
-                      project={project}
-                      isActive={activeProject?.id === project.id}
-                      onEdit={handleEditProject}
-                      mappings={projectMappings[project.id] || []}
-                      isSyncing={syncingProjects.has(project.id)}
-                      onSync={handleSyncProject}
-                    />
-                  ))}
-                </div>
-              )}
+            )}
 
-              {archivedProjects.length > 0 && (
-                <div className="space-y-1">
-                  <div className="py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Archived
-                  </div>
-                  {archivedProjects.map((project) => (
-                    <ProjectItem
-                      key={project.id}
-                      project={project}
-                      isActive={activeProject?.id === project.id}
-                      onEdit={handleEditProject}
-                      mappings={projectMappings[project.id] || []}
-                      isSyncing={syncingProjects.has(project.id)}
-                      onSync={handleSyncProject}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {projects.length === 0 && (
-                <div className="py-4 text-center text-sm text-muted-foreground">
-                  No projects yet
-                </div>
-              )}
-
-              {/* Remove from project drop zone */}
-              <div
-                {...removeProjectProps}
-                className={cn(
-                  "mt-4 rounded-md border-2 border-dashed p-4 text-center",
-                  isOverRemove
-                    ? "border-destructive bg-destructive/10"
-                    : "border-muted hover:border-muted-foreground/50"
-                )}
-              >
-                <p className="text-sm text-muted-foreground">
-                  Drop here to remove from project
-                </p>
+            {error && (
+              <div className="text-center text-sm text-destructive">
+                Error loading projects
               </div>
-            </div>
-          )}
+            )}
+
+            {!loading && !error && (
+              <>
+                {/* Active Projects */}
+                {activeProjects.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                      Active Projects
+                    </h3>
+                    <div className="space-y-1">
+                      {activeProjects.map((project) => (
+                        <ProjectItem
+                          key={project.id}
+                          project={project as Project}
+                          isActive={activeProject === project.id}
+                          onEdit={handleEditProject}
+                          mappings={projectMappings[project.id] || []}
+                          isSyncing={syncingProjects.has(project.id)}
+                          onSync={handleSyncProject}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Archived Projects */}
+                {archivedProjects.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+                      Archived Projects
+                    </h3>
+                    <div className="space-y-1">
+                      {archivedProjects.map((project) => (
+                        <ProjectItem
+                          key={project.id}
+                          project={project as Project}
+                          isActive={activeProject === project.id}
+                          onEdit={handleEditProject}
+                          mappings={projectMappings[project.id] || []}
+                          isSyncing={syncingProjects.has(project.id)}
+                          onSync={handleSyncProject}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Projects */}
+                {activeProjects.length === 0 &&
+                  archivedProjects.length === 0 && (
+                    <div className="text-center text-sm text-muted-foreground">
+                      No projects yet. Create your first project!
+                    </div>
+                  )}
+              </>
+            )}
+          </div>
         </ScrollArea>
+
+        {/* Remove Project Drop Zone */}
+        <div
+          {...removeProjectProps}
+          className={cn(
+            "border-t p-4 text-center text-sm transition-colors",
+            isOverRemove
+              ? "bg-destructive/10 text-destructive"
+              : "text-muted-foreground"
+          )}
+        >
+          {isOverRemove ? "Drop to remove from project" : "Remove from project"}
+        </div>
       </div>
 
       <ProjectModal
@@ -316,66 +343,84 @@ function ProjectItem({
   isSyncing,
   onSync,
 }: ProjectItemProps) {
-  const { setActiveProject } = useProjectStore();
-  const { tasks } = useTaskStore();
+  const { setActiveProject } = useTaskUIStore();
   const { droppableProps, isOver } = useDroppableProject(project);
 
-  // Count non-completed tasks for this project
-  const taskCount = tasks.filter(
-    (task) =>
-      task.projectId === project.id && task.status !== TaskStatus.COMPLETED
-  ).length;
-
-  // Check if project has any task mappings
-  const hasMappings = mappings.length > 0;
+  // Get task count from project data
+  const taskCount = project._count?.tasks || 0;
 
   return (
     <div
       {...droppableProps}
       className={cn(
-        "group flex w-full cursor-pointer items-center space-x-2 rounded-md px-3 py-2",
-        isActive ? "bg-secondary text-secondary-foreground" : "hover:bg-muted",
-        isOver && "ring-2 ring-ring"
+        "group relative rounded-md transition-colors",
+        isActive && "bg-accent",
+        isOver && "bg-accent/50"
       )}
-      onClick={() => setActiveProject(project)}
     >
-      {project.color && (
-        <div
-          className="h-2 w-2 flex-shrink-0 rounded-full"
-          style={{ backgroundColor: project.color }}
-        />
-      )}
-      <span className="project-name flex-1 truncate">{project.name}</span>
-      <span className="text-xs text-muted-foreground">{taskCount}</span>
-
-      {hasMappings && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-          disabled={isSyncing}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSync(project.id, mappings[0].id);
-          }}
-        >
-          <BsArrowRepeat
-            className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")}
-          />
-        </Button>
-      )}
-
       <Button
         variant="ghost"
-        size="icon"
-        className="h-6 w-6 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit(project);
-        }}
+        className={cn(
+          "h-auto w-full justify-start p-2 text-left",
+          isActive && "bg-accent font-medium"
+        )}
+        onClick={() => setActiveProject(project.id)}
       >
-        <HiPencil className="h-3 w-3" />
+        <div
+          className="mr-2 h-3 w-3 rounded-full border-2"
+          style={{
+            backgroundColor: project.color || "#E5E7EB",
+            borderColor: project.color || "#E5E7EB",
+          }}
+        />
+        <span className="flex-1 truncate">{project.name}</span>
+        {taskCount > 0 && (
+          <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">
+            {taskCount}
+          </span>
+        )}
       </Button>
+
+      {/* Project Actions */}
+      <div className="absolute right-1 top-1 flex opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Sync Button */}
+        {mappings.length > 0 && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isSyncing && mappings[0]) {
+                onSync(project.id, mappings[0].id);
+              }
+            }}
+            disabled={isSyncing}
+            title={
+              isSyncing
+                ? "Syncing..."
+                : `Sync with ${mappings[0]?.externalListName || "external list"}`
+            }
+          >
+            <BsArrowRepeat
+              className={cn("h-3 w-3", isSyncing && "animate-spin")}
+            />
+          </Button>
+        )}
+
+        {/* Edit Button */}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(project);
+          }}
+        >
+          <HiPencil className="h-3 w-3" />
+        </Button>
+      </div>
     </div>
   );
 }

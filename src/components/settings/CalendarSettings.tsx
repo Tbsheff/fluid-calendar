@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-
 import {
   CalendarSettings as PrismaCalendarSettings,
   UserSettings as PrismaUserSettings,
@@ -19,12 +17,17 @@ import {
 
 import { trpc } from "@/lib/trpc/client";
 
-import { useCalendarStore } from "@/store/calendar";
-
 import { SettingRow, SettingsSection } from "./SettingsSection";
 
 export function CalendarSettings() {
-  const { feeds, loadFromDatabase } = useCalendarStore();
+  // Get feeds data with tRPC instead of deprecated calendar store
+  const { data: feeds = [] } = trpc.feeds.getAll.useQuery(
+    {},
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+    }
+  );
 
   // Use tRPC to fetch and update calendar and user settings
   const { data: calendarSettingsData, isLoading: isLoadingCalendar } =
@@ -46,10 +49,8 @@ export function CalendarSettings() {
   const updateCalendarSettingsMutation = trpc.settings.update.useMutation();
   const updateUserSettingsMutation = trpc.settings.update.useMutation();
 
-  // Load feeds when component mounts
-  useEffect(() => {
-    loadFromDatabase();
-  }, [loadFromDatabase]);
+  // Feeds are now loaded via tRPC query above
+  // No longer need to manually load from database
 
   const handleUpdateCalendarSettings = async (
     updates: Partial<{
